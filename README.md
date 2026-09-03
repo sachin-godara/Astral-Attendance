@@ -164,11 +164,11 @@ astral-attendance/
 │   ├── Calendar.tsx         # Interactive monthly schedule & holiday manager
 │   ├── Dashboard.tsx        # Core attendance dashboard, gauge & forecast chart
 │   ├── Hero.tsx             # Minimal landing view
-│   ├── Modal.tsx            # Accessible modal dialog with Escape-key listener
-│   └── SupportModal.tsx     # Developer info modal
+│   └── Modal.tsx            # Accessible modal dialog with Escape-key listener
 ├── public/
 │   ├── _redirects           # Netlify SPA single-page routing
-│   └── favicon.svg          # Minimalist graduation cap vector favicon
+│   ├── favicon.svg          # Minimalist graduation cap vector favicon
+│   └── site.webmanifest     # PWA standalone manifest configuration
 ├── utils/
 │   └── calculations.ts      # Deterministic mathematical engine & date resolvers
 ├── App.tsx                  # Root layout, theme provider & header/footer

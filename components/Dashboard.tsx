@@ -70,7 +70,6 @@ const AnimatedCounter: React.FC<{ value: number; className?: string; toFixed?: n
 };
 
 interface DashboardProps {
-  onOpenSupport?: () => void;
   isDarkMode?: boolean;
 }
 
