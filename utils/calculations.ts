@@ -65,6 +65,7 @@ export const calculateStats = (state: AttendanceState): AttendanceStats => {
   const targetPercentage = Math.min(100, Math.max(1, Number(rawTarget) || 75));
   const dailyClasses = Math.max(1, Number(rawDaily) || 6);
   const targetRatio = targetPercentage / 100;
+  const includeToday = Boolean(state.includeToday);
 
   // Derive attended classes
   const attendedClasses = Math.max(0, totalClasses - absentClasses);
@@ -88,7 +89,9 @@ export const calculateStats = (state: AttendanceState): AttendanceStats => {
   // If exam date is invalid or in past, assume 0 future days
   const validExamDate = examDate !== '' && !isNaN(exam.getTime()) && exam > today;
   
-  const workingDaysLeft = validExamDate ? getWorkingDaysBetween(tomorrow, exam, holidays, extraWorkingDays) : 0;
+  // If includeToday is true, start counting working days from today (e.g. morning check); otherwise from tomorrow
+  const startDate = includeToday ? today : tomorrow;
+  const workingDaysLeft = validExamDate ? getWorkingDaysBetween(startDate, exam, holidays, extraWorkingDays) : 0;
   const classesUntilExam = workingDaysLeft * dailyClasses;
   
   // 3. Max Achievable logic
@@ -135,9 +138,9 @@ export const calculateStats = (state: AttendanceState): AttendanceStats => {
   const holidaySet = new Set(holidays);
   const workingSet = new Set(extraWorkingDays);
 
-  const checkDate = new Date(tomorrow);
+  const checkDate = new Date(includeToday ? today : tomorrow);
   let nextWorkingDate: Date | null = null;
-  let isTomorrowOff = false;
+  let isNextDayOff = false;
 
   // Check up to 30 days ahead to find the next instructional day
   for (let step = 0; step < 30; step++) {
@@ -150,7 +153,7 @@ export const calculateStats = (state: AttendanceState): AttendanceStats => {
     const isClassDay = (!isWknd && !holidaySet.has(dStr)) || (isWknd && workingSet.has(dStr));
 
     if (step === 0 && !isClassDay) {
-      isTomorrowOff = true;
+      isNextDayOff = true;
     }
 
     if (isClassDay) {
@@ -160,8 +163,15 @@ export const calculateStats = (state: AttendanceState): AttendanceStats => {
     checkDate.setDate(checkDate.getDate() + 1);
   }
 
-  let nextClassDateLabel = 'Tomorrow';
-  if (isTomorrowOff && nextWorkingDate) {
+  let nextClassDateLabel = includeToday ? 'Today' : 'Tomorrow';
+  const isSameDayAsToday = nextWorkingDate && nextWorkingDate.getTime() === today.getTime();
+  const isSameDayAsTomorrow = nextWorkingDate && nextWorkingDate.getTime() === tomorrow.getTime();
+
+  if (isSameDayAsToday) {
+    nextClassDateLabel = 'Today';
+  } else if (isSameDayAsTomorrow) {
+    nextClassDateLabel = 'Tomorrow';
+  } else if (nextWorkingDate) {
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     nextClassDateLabel = dayNames[nextWorkingDate.getDay()];
   }
@@ -176,6 +186,8 @@ export const calculateStats = (state: AttendanceState): AttendanceStats => {
     targetPercentage,
     dailyClasses,
     classesUntilExam,
+    workingDaysLeft,
+    isTodayIncluded: includeToday,
     bunkableClasses,
     bunkableDays,
     requiredClasses,
@@ -184,7 +196,7 @@ export const calculateStats = (state: AttendanceState): AttendanceStats => {
     nextClassImpact,
     nextClassDrop,
     nextClassDateLabel,
-    isTomorrowOff,
+    isTomorrowOff: isNextDayOff,
     isPossibleToReachTarget,
     maxAchievablePercentage,
     hasExamDate: validExamDate

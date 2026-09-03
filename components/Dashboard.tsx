@@ -16,7 +16,8 @@ import {
   Download,
   Upload,
   Plus,
-  Minus
+  Minus,
+  Clock
 } from 'lucide-react';
 import { AttendanceState } from '../types';
 import { calculateStats } from '../utils/calculations';
@@ -94,7 +95,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
             holidays: Array.isArray(parsed.holidays) ? parsed.holidays : [],
             extraWorkingDays: Array.isArray(parsed.extraWorkingDays) ? parsed.extraWorkingDays : [],
             targetPercentage: parsed.targetPercentage ?? 75,
-            dailyClasses: parsed.dailyClasses ?? 6
+            dailyClasses: parsed.dailyClasses ?? 6,
+            includeToday: parsed.includeToday ?? false
           };
         }
       } catch (e) {
@@ -369,9 +371,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
     const currentAttended = Math.max(0, state.totalClasses - state.absentClasses);
     const startPct = state.totalClasses === 0 ? 0 : (currentAttended / state.totalClasses) * 100;
     const effectiveDaily = state.dailyClasses ?? 6;
+    const includeToday = Boolean(state.includeToday);
 
     data.push({
-      name: 'Today',
+      name: includeToday ? 'Now' : 'Today',
       attendAll: parseFloat(startPct.toFixed(1)),
       bunkAll: parseFloat(startPct.toFixed(1)),
     });
@@ -387,7 +390,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
     let cumulativeAttendedAll = currentAttended;
     let cumulativeAttendedBunk = currentAttended;
 
-    for (let i = 1; i <= 7; i++) {
+    const startOffset = includeToday ? 0 : 1;
+    const endOffset = includeToday ? 6 : 7;
+
+    for (let i = startOffset; i <= endOffset; i++) {
       const targetDate = new Date(todayDate);
       targetDate.setDate(todayDate.getDate() + i);
 
@@ -406,7 +412,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
       const attendPct = cumulativeTotal === 0 ? 0 : (cumulativeAttendedAll / cumulativeTotal) * 100;
       const bunkPct = cumulativeTotal === 0 ? 0 : (cumulativeAttendedBunk / cumulativeTotal) * 100;
 
-      const dayLabel = isClassDay ? dayNames[dayOfWeek] : `${dayNames[dayOfWeek]}*`;
+      let dayLabel = isClassDay ? dayNames[dayOfWeek] : `${dayNames[dayOfWeek]}*`;
+      if (i === 0) {
+        dayLabel = isClassDay ? 'Today' : 'Today*';
+      }
 
       data.push({
         name: dayLabel,
@@ -415,7 +424,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
       });
     }
     return data;
-  }, [state.totalClasses, state.absentClasses, state.dailyClasses, state.holidays, state.extraWorkingDays]);
+  }, [state.totalClasses, state.absentClasses, state.dailyClasses, state.holidays, state.extraWorkingDays, state.includeToday]);
 
   const percentage = stats?.currentPercentage || 0;
   const targetThreshold = stats?.targetPercentage || 75;
@@ -656,6 +665,46 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
                   className="w-16 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-center text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
                   title="Custom classes per day"
                 />
+              </div>
+            </div>
+
+            {/* Today's Classes Inclusion */}
+            <div className="space-y-1.5 sm:col-span-2 pt-2 border-t border-zinc-200/80 dark:border-zinc-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <label className="text-zinc-500 uppercase tracking-wider block text-[11px] font-semibold">
+                    Today's Classes Timing (Morning vs Evening)
+                  </label>
+                  <p className="text-[11px] text-zinc-500 font-sans">
+                    {state.includeToday
+                      ? "Morning check: Today's classes haven't occurred yet, so they are included in your future exam allowance."
+                      : "Evening check: Today's classes are already counted in your Total Classes, so future calculations start from tomorrow."}
+                  </p>
+                </div>
+                <div className="inline-flex items-center p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-200/60 dark:bg-zinc-800 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleChange('includeToday', false)}
+                    className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
+                      !state.includeToday
+                        ? 'bg-white dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50 font-bold shadow-xs'
+                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                    }`}
+                  >
+                    Already Logged (Evening)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleChange('includeToday', true)}
+                    className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
+                      state.includeToday
+                        ? 'bg-white dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50 font-bold shadow-xs'
+                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                    }`}
+                  >
+                    Pending (Morning)
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1071,14 +1120,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
           </div>
 
           {/* Exam Date */}
-          <div className="space-y-1.5 pt-2 border-t border-zinc-100 dark:border-zinc-900">
+          <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-zinc-900">
             <div className="flex justify-between items-baseline">
               <label htmlFor="exam-date-input" className="text-xs font-mono font-medium uppercase tracking-wider text-zinc-500">
                 Exam Date
               </label>
               {stats?.hasExamDate && (
                 <span className="text-[11px] font-mono text-zinc-400">
-                  {stats.classesUntilExam} classes remain
+                  {stats.classesUntilExam} classes remain {state.includeToday ? '(incl. today)' : '(from tomorrow)'}
                 </span>
               )}
             </div>
@@ -1090,6 +1139,48 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
               onChange={(e) => handleChange('examDate', e.target.value)}
               className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus:border-black dark:focus:border-white focus:bg-white dark:focus:bg-zinc-950 rounded-xl px-3.5 py-2.5 font-mono text-base sm:text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none transition-colors dark:[color-scheme:dark] touch-manipulation"
             />
+
+            {/* Today's Attendance Inclusion Switch */}
+            <div className="pt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl border border-zinc-200/90 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 font-mono text-xs">
+              <div className="space-y-0.5">
+                <span className="font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 text-[11px]">
+                  <Clock className="w-3 h-3 text-zinc-400" />
+                  Today's Classes Timing
+                </span>
+                <p className="text-[10px] text-zinc-400 font-sans">
+                  {state.includeToday
+                    ? "Morning check: Today's classes pending → counted towards exam"
+                    : "Evening check: Today's classes already in Total → begins tomorrow"}
+                </p>
+              </div>
+
+              <div className="inline-flex items-center p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-200/60 dark:bg-zinc-800 shrink-0 self-start sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => handleChange('includeToday', false)}
+                  className={`px-2 py-0.5 rounded-md text-[10px] transition-all cursor-pointer ${
+                    !state.includeToday
+                      ? 'bg-white dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50 font-bold shadow-xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                  }`}
+                  title="Today's attendance already counted in Total Classes"
+                >
+                  Logged (Evening)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleChange('includeToday', true)}
+                  className={`px-2 py-0.5 rounded-md text-[10px] transition-all cursor-pointer ${
+                    state.includeToday
+                      ? 'bg-white dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50 font-bold shadow-xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                  }`}
+                  title="Today's classes haven't occurred yet (morning check)"
+                >
+                  Pending (Morning)
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Holidays Button */}
@@ -1258,7 +1349,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
             </span>
             {stats?.hasExamDate && (
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-medium">
-                Until Exam
+                {state.includeToday ? 'Until Exam (Incl. Today)' : 'Until Exam'}
               </span>
             )}
           </div>
@@ -1335,11 +1426,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
             <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 block">
               {stats?.nextClassDateLabel} Risk
             </span>
-            {stats?.isTomorrowOff && (
+            {stats?.nextClassDateLabel === 'Today' ? (
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-medium">
+                Today Pending
+              </span>
+            ) : stats?.isTomorrowOff ? (
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 font-medium">
                 Tomorrow Off
               </span>
-            )}
+            ) : null}
           </div>
           <div className="flex items-baseline gap-1.5 mb-1 font-mono">
             <span className="text-3xl font-extrabold text-zinc-950 dark:text-zinc-50">

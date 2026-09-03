@@ -55,6 +55,10 @@ All calculations run entirely in the browser with sub-millisecond execution, zer
 - **Next-Class Resolver**: Scans up to 30 days ahead to determine the *next actual class day*. Never warns you about "Sunday Risk"—if tomorrow is an off-day or holiday, it displays **"Tomorrow Off"** and alerts you to your next working session (e.g. *"Monday Risk (Next Class)"*).
 - **Quantified Next-Day Drop**: Calculates the exact percentage reduction if the entire upcoming class day is missed.
 
+### ⏰ Morning vs. Evening Today's Classes Timing
+- **Morning Mode (`Pending`)**: Checking attendance before classes begin. Today's classes haven't occurred yet, so they are factored into future exam horizon allowance and safe bunk calculations, while Card 3 alerts you to **Today's Risk**.
+- **Evening Mode (`Logged`)**: Checking attendance at the end of the day. Today's classes are already part of your recorded total, so future projections start cleanly from tomorrow.
+
 ### 🎯 3-Tier Status Classification
 - **Comfortable** ($\ge \text{Target} + 5\%$): Substantial buffer above requirement.
 - **Borderline** ($\text{Target} \le P < \text{Target} + 5\%$): Safe, but within immediate risk of deficit.
@@ -116,7 +120,7 @@ $$D_{\text{recover}} = \lceil R / C_d \rceil$$
 
 ### 4. Exam Horizon Projection
 
-When an exam date is configured, future working days $D_{\text{work}}$ between tomorrow and the exam date (excluding holidays and non-working weekends) are computed:
+When an exam date is configured, future working days $D_{\text{work}}$ between the start date (either `today` in Morning Mode or `tomorrow` in Evening Mode) and the exam date (excluding holidays and non-working weekends) are computed:
 
 $$F = D_{\text{work}} \times C_d \quad (\text{Future classes available})$$
 $$T_{\text{final}} = T + F \quad (\text{Total classes at semester end})$$
