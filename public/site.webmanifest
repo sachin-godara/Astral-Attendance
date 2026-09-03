@@ -1,0 +1,17 @@
+{
+  "name": "Astral Attendance",
+  "short_name": "Astral",
+  "description": "Minimalist Attendance Analytics & Predictive Academic Calculator",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
