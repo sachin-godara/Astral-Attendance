@@ -55,8 +55,8 @@ const App: React.FC = () => {
       <Background isDarkMode={isDarkMode} />
       
       {/* Architectural Minimal Header */}
-      <header className="sticky top-0 z-40 w-full border-b border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-[#09090b]/90 backdrop-blur-md">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <header className="sticky top-0 z-40 w-full border-b border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-[#09090b]/90 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+        <div className="max-w-6xl mx-auto px-3.5 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between">
           
           {/* Brand Logo & Name */}
           <div className="flex items-center gap-2.5">
@@ -113,8 +113,8 @@ const App: React.FC = () => {
       </main>
 
       {/* Minimalist Professional Footer */}
-      <footer className="w-full border-t border-zinc-200 dark:border-zinc-800 py-6 mt-auto">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs font-mono text-zinc-400">
+      <footer className="w-full border-t border-zinc-200 dark:border-zinc-800 py-6 mt-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left text-xs font-mono text-zinc-400">
           <p>© {new Date().getFullYear()} Astral Attendance • 100% Client-Side & Private</p>
           <div className="flex items-center gap-4 text-zinc-500">
             <a 

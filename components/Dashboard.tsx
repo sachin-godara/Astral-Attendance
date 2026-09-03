@@ -477,7 +477,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 sm:pb-0 scroll-container">
+        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 sm:pb-0 scroll-container no-scrollbar">
           <input 
             ref={fileInputRef} 
             type="file" 
@@ -671,40 +671,40 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
             </div>
 
             {/* Today's Classes Inclusion */}
-            <div className="space-y-1.5 sm:col-span-2 pt-2 border-t border-zinc-200/80 dark:border-zinc-800">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="space-y-2 sm:col-span-2 pt-2 border-t border-zinc-200/80 dark:border-zinc-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <div>
                   <label className="text-zinc-500 uppercase tracking-wider block text-[11px] font-semibold">
-                    Today's Classes Timing (Morning vs Evening)
+                    Include Today's Classes?
                   </label>
                   <p className="text-[11px] text-zinc-500 font-sans">
                     {state.includeToday
-                      ? "Morning check: Today's classes haven't occurred yet, so they are included in your future exam allowance."
-                      : "Evening check: Today's classes are already counted in your Total Classes, so future calculations start from tomorrow."}
+                      ? "Morning check: Today's classes pending → counted towards exam allowance."
+                      : "Evening check: Today's classes already counted in Total → future begins tomorrow."}
                   </p>
                 </div>
-                <div className="inline-flex items-center p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-200/60 dark:bg-zinc-800 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleChange('includeToday', false)}
-                    className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
-                      !state.includeToday
-                        ? 'bg-white dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50 font-bold shadow-xs'
-                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
-                    }`}
-                  >
-                    Already Logged (Evening)
-                  </button>
+                <div className="grid grid-cols-2 gap-1 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-200/60 dark:bg-zinc-800 shrink-0 w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={() => handleChange('includeToday', true)}
-                    className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
+                    className={`w-full py-1.5 px-3 rounded-md text-xs transition-all cursor-pointer font-medium text-center ${
                       state.includeToday
                         ? 'bg-white dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50 font-bold shadow-xs'
                         : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
                     }`}
                   >
-                    Pending (Morning)
+                    Include (Morning)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleChange('includeToday', false)}
+                    className={`w-full py-1.5 px-3 rounded-md text-xs transition-all cursor-pointer font-medium text-center ${
+                      !state.includeToday
+                        ? 'bg-white dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50 font-bold shadow-xs'
+                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                    }`}
+                  >
+                    Exclude (Evening)
                   </button>
                 </div>
               </div>
@@ -796,12 +796,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex items-center gap-2.5 pt-1">
                 <button
                   type="button"
                   onClick={() => setSimBunkValue(prev => Math.max(0, prev - 1))}
                   disabled={simBunkValue === 0}
-                  className="w-5 h-5 rounded flex items-center justify-center border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed font-bold"
+                  className="w-7 h-7 sm:w-6 sm:h-6 rounded-lg flex items-center justify-center border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed font-bold touch-manipulation text-sm sm:text-xs select-none active:scale-95 shrink-0"
                   title="Decrease by 1"
                 >
                   -
@@ -812,12 +812,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
                   max={simUnit === 'days' ? 14 : Math.max(50, 14 * effectiveDaily)}
                   value={simBunkValue} 
                   onChange={(e) => setSimBunkValue(parseInt(e.target.value) || 0)}
-                  className="flex-1 accent-red-500 cursor-pointer"
+                  className="flex-1 accent-red-500 cursor-pointer touch-manipulation py-1"
                 />
                 <button
                   type="button"
                   onClick={() => setSimBunkValue(prev => Math.min(simUnit === 'days' ? 14 : Math.max(50, 14 * effectiveDaily), prev + 1))}
-                  className="w-5 h-5 rounded flex items-center justify-center border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 cursor-pointer font-bold"
+                  className="w-7 h-7 sm:w-6 sm:h-6 rounded-lg flex items-center justify-center border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 cursor-pointer font-bold touch-manipulation text-sm sm:text-xs select-none active:scale-95 shrink-0"
                   title="Increase by 1"
                 >
                   +
@@ -825,15 +825,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
               </div>
 
               {/* Quick Presets */}
-              <div className="flex items-center gap-1.5 pt-1 overflow-x-auto">
-                <span className="text-[10px] text-zinc-400">Quick:</span>
+              <div className="flex items-center gap-1.5 pt-1 overflow-x-auto no-scrollbar">
+                <span className="text-[10px] text-zinc-400 shrink-0">Quick:</span>
                 {simUnit === 'days' ? (
                   [1, 2, 3, 5].map(d => (
                     <button
                       key={d}
                       type="button"
                       onClick={() => setSimBunkValue(prev => Math.min(14, prev + d))}
-                      className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-[10px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 cursor-pointer"
+                      className="px-2 py-0.5 rounded-md bg-zinc-200 dark:bg-zinc-800 text-[10px] sm:text-[11px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 cursor-pointer touch-manipulation active:scale-95 shrink-0"
                     >
                       +{d}d
                     </button>
@@ -844,7 +844,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
                       key={c}
                       type="button"
                       onClick={() => setSimBunkValue(prev => Math.min(Math.max(50, 14 * effectiveDaily), prev + c))}
-                      className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-[10px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 cursor-pointer"
+                      className="px-2 py-0.5 rounded-md bg-zinc-200 dark:bg-zinc-800 text-[10px] sm:text-[11px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 cursor-pointer touch-manipulation active:scale-95 shrink-0"
                     >
                       +{c === effectiveDaily ? `${c} (1d)` : `${c}c`}
                     </button>
@@ -867,12 +867,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex items-center gap-2.5 pt-1">
                 <button
                   type="button"
                   onClick={() => setSimAttendValue(prev => Math.max(0, prev - 1))}
                   disabled={simAttendValue === 0}
-                  className="w-5 h-5 rounded flex items-center justify-center border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed font-bold"
+                  className="w-7 h-7 sm:w-6 sm:h-6 rounded-lg flex items-center justify-center border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed font-bold touch-manipulation text-sm sm:text-xs select-none active:scale-95 shrink-0"
                   title="Decrease by 1"
                 >
                   -
@@ -883,12 +883,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
                   max={simUnit === 'days' ? 21 : Math.max(60, 21 * effectiveDaily)}
                   value={simAttendValue} 
                   onChange={(e) => setSimAttendValue(parseInt(e.target.value) || 0)}
-                  className="flex-1 accent-emerald-500 cursor-pointer"
+                  className="flex-1 accent-emerald-500 cursor-pointer touch-manipulation py-1"
                 />
                 <button
                   type="button"
                   onClick={() => setSimAttendValue(prev => Math.min(simUnit === 'days' ? 21 : Math.max(60, 21 * effectiveDaily), prev + 1))}
-                  className="w-5 h-5 rounded flex items-center justify-center border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 cursor-pointer font-bold"
+                  className="w-7 h-7 sm:w-6 sm:h-6 rounded-lg flex items-center justify-center border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 cursor-pointer font-bold touch-manipulation text-sm sm:text-xs select-none active:scale-95 shrink-0"
                   title="Increase by 1"
                 >
                   +
@@ -896,15 +896,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
               </div>
 
               {/* Quick Presets */}
-              <div className="flex items-center gap-1.5 pt-1 overflow-x-auto">
-                <span className="text-[10px] text-zinc-400">Quick:</span>
+              <div className="flex items-center gap-1.5 pt-1 overflow-x-auto no-scrollbar">
+                <span className="text-[10px] text-zinc-400 shrink-0">Quick:</span>
                 {simUnit === 'days' ? (
                   [1, 2, 3, 5].map(d => (
                     <button
                       key={d}
                       type="button"
                       onClick={() => setSimAttendValue(prev => Math.min(21, prev + d))}
-                      className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-[10px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 cursor-pointer"
+                      className="px-2 py-0.5 rounded-md bg-zinc-200 dark:bg-zinc-800 text-[10px] sm:text-[11px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 cursor-pointer touch-manipulation active:scale-95 shrink-0"
                     >
                       +{d}d
                     </button>
@@ -915,7 +915,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
                       key={c}
                       type="button"
                       onClick={() => setSimAttendValue(prev => Math.min(Math.max(60, 21 * effectiveDaily), prev + c))}
-                      className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-[10px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 cursor-pointer"
+                      className="px-2 py-0.5 rounded-md bg-zinc-200 dark:bg-zinc-800 text-[10px] sm:text-[11px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 cursor-pointer touch-manipulation active:scale-95 shrink-0"
                     >
                       +{c === effectiveDaily ? `${c} (1d)` : `${c}c`}
                     </button>
@@ -1020,7 +1020,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
               </label>
               
               {/* Quick Actions: Attended vs Missed */}
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
                   id="btn-log-day-attended"
@@ -1029,11 +1029,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
                     handleChange('totalClasses', (Number(state.totalClasses) || 0) + added);
                     setToast({ message: `Logged +1 day (${added} classes) attended.` });
                   }}
-                  className="px-2 py-1 min-h-[30px] text-[11px] font-mono font-medium rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200/80 dark:border-zinc-700 transition-all active:scale-95 cursor-pointer shadow-xs flex items-center gap-1"
+                  className="px-2 py-1 min-h-[32px] sm:min-h-[30px] text-[11px] font-mono font-medium rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200/80 dark:border-zinc-700 transition-all active:scale-95 cursor-pointer shadow-xs flex items-center gap-1 touch-manipulation"
                   title={`Log ${effectiveDaily} attended classes (+1 day)`}
                 >
-                  <Plus className="w-3 h-3 text-emerald-500" />
-                  <span>+1d Attended</span>
+                  <Plus className="w-3 h-3 text-emerald-500 shrink-0" />
+                  <span>1d Attended</span>
                 </button>
                 <button
                   type="button"
@@ -1047,11 +1047,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
                     });
                     setToast({ message: `Logged +1 day (${added} classes) missed/bunked.` });
                   }}
-                  className="px-2 py-1 min-h-[30px] text-[11px] font-mono font-medium rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200/80 dark:border-zinc-700 transition-all active:scale-95 cursor-pointer shadow-xs flex items-center gap-1"
+                  className="px-2 py-1 min-h-[32px] sm:min-h-[30px] text-[11px] font-mono font-medium rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200/80 dark:border-zinc-700 transition-all active:scale-95 cursor-pointer shadow-xs flex items-center gap-1 touch-manipulation"
                   title={`Log ${effectiveDaily} missed classes (+1 day)`}
                 >
-                  <Minus className="w-3 h-3 text-red-500" />
-                  <span>+1d Missed</span>
+                  <Minus className="w-3 h-3 text-red-500 shrink-0" />
+                  <span>1d Missed</span>
                 </button>
               </div>
             </div>
@@ -1143,10 +1143,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
             />
 
             {/* Today's Attendance Inclusion Switch */}
-            <div className="pt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl border border-zinc-200/90 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 font-mono text-xs">
+            <div className="pt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2.5 rounded-xl border border-zinc-200/90 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 font-mono text-xs">
               <div className="space-y-0.5">
                 <span className="font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 text-[11px]">
-                  <Clock className="w-3 h-3 text-zinc-400" />
+                  <Clock className="w-3 h-3 text-zinc-400 shrink-0" />
                   Include Today's Classes?
                 </span>
                 <p className="text-[10px] text-zinc-400 font-sans">
@@ -1156,11 +1156,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
                 </p>
               </div>
 
-              <div className="inline-flex items-center p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-200/60 dark:bg-zinc-800 shrink-0 self-start sm:self-center">
+              <div className="grid grid-cols-2 gap-1 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-200/60 dark:bg-zinc-800 shrink-0 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => handleChange('includeToday', true)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer ${
+                  className={`w-full py-1.5 px-2.5 rounded-md text-[11px] transition-all cursor-pointer font-medium text-center flex items-center justify-center touch-manipulation ${
                     state.includeToday
                       ? 'bg-white dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50 font-bold shadow-xs'
                       : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
@@ -1172,7 +1172,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
                 <button
                   type="button"
                   onClick={() => handleChange('includeToday', false)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer ${
+                  className={`w-full py-1.5 px-2.5 rounded-md text-[11px] transition-all cursor-pointer font-medium text-center flex items-center justify-center touch-manipulation ${
                     !state.includeToday
                       ? 'bg-white dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50 font-bold shadow-xs'
                       : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
@@ -1350,7 +1350,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
               Bunk Allowance
             </span>
             {stats?.hasExamDate && (
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-medium">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-medium shrink-0">
                 {state.includeToday ? 'Until Exam (Incl. Today)' : 'Until Exam'}
               </span>
             )}
@@ -1395,7 +1395,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
               Needed For {targetThreshold}%
             </span>
             {stats?.hasExamDate && (
-              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-medium ${
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-medium shrink-0 ${
                 stats?.isPossibleToReachTarget === false 
                   ? 'bg-red-500/10 text-red-500 border border-red-500/20' 
                   : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
@@ -1443,15 +1443,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
               {stats?.hasClassBeforeExam === false ? 'Exam Horizon' : `${stats?.nextClassDateLabel} Risk`}
             </span>
             {stats?.hasClassBeforeExam === false ? (
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium shrink-0">
                 Target Locked
               </span>
             ) : stats?.nextClassDateLabel === 'Today' ? (
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-medium">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-medium shrink-0">
                 Today Pending
               </span>
             ) : stats?.isTomorrowOff ? (
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 font-medium">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 font-medium shrink-0">
                 Tomorrow Off
               </span>
             ) : null}
@@ -1478,7 +1478,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
             7-Day Forecast
           </h2>
 
-          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 text-xs font-mono text-zinc-500">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] sm:text-xs font-mono text-zinc-500">
             <div className="flex items-center gap-1">
               <span className="w-2.5 h-0.5 bg-black dark:bg-white"></span>
               <span>Attend</span>
