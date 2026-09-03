@@ -205,7 +205,7 @@ npm install
 ```bash
 npm run dev
 ```
-Navigate to `http://localhost:3000` in your browser.
+Navigate to `http://localhost:5173` in your browser.
 
 ### 4. Code Quality & Type Check
 ```bash
