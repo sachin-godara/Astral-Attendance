@@ -96,7 +96,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
             extraWorkingDays: Array.isArray(parsed.extraWorkingDays) ? parsed.extraWorkingDays : [],
             targetPercentage: parsed.targetPercentage ?? 75,
             dailyClasses: parsed.dailyClasses ?? 6,
-            includeToday: parsed.includeToday ?? false
+            includeToday: parsed.includeToday ?? true
           };
         }
       } catch (e) {
@@ -111,7 +111,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
           return {
             ...parsedBackup.state,
             targetPercentage: parsedBackup.state.targetPercentage ?? 75,
-            dailyClasses: parsedBackup.state.dailyClasses ?? 6
+            dailyClasses: parsedBackup.state.dailyClasses ?? 6,
+            includeToday: parsedBackup.state.includeToday ?? true
           };
         }
       } catch (e) {}
@@ -123,7 +124,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
       holidays: [],
       extraWorkingDays: [],
       targetPercentage: 75,
-      dailyClasses: 6
+      dailyClasses: 6,
+      includeToday: true
     };
   });
 
@@ -1145,11 +1147,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
               <div className="space-y-0.5">
                 <span className="font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 text-[11px]">
                   <Clock className="w-3 h-3 text-zinc-400" />
-                  Today's Classes Timing
+                  Include Today's Classes?
                 </span>
                 <p className="text-[10px] text-zinc-400 font-sans">
                   {state.includeToday
-                    ? "Morning check: Today's classes pending → counted towards exam"
+                    ? "Morning check: Today's classes pending → counted in exam allowance"
                     : "Evening check: Today's classes already in Total → begins tomorrow"}
                 </p>
               </div>
@@ -1157,27 +1159,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
               <div className="inline-flex items-center p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-200/60 dark:bg-zinc-800 shrink-0 self-start sm:self-center">
                 <button
                   type="button"
-                  onClick={() => handleChange('includeToday', false)}
-                  className={`px-2 py-0.5 rounded-md text-[10px] transition-all cursor-pointer ${
-                    !state.includeToday
-                      ? 'bg-white dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50 font-bold shadow-xs'
-                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
-                  }`}
-                  title="Today's attendance already counted in Total Classes"
-                >
-                  Logged (Evening)
-                </button>
-                <button
-                  type="button"
                   onClick={() => handleChange('includeToday', true)}
-                  className={`px-2 py-0.5 rounded-md text-[10px] transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer ${
                     state.includeToday
                       ? 'bg-white dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50 font-bold shadow-xs'
                       : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
                   }`}
                   title="Today's classes haven't occurred yet (morning check)"
                 >
-                  Pending (Morning)
+                  Include (Morning)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleChange('includeToday', false)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer ${
+                    !state.includeToday
+                      ? 'bg-white dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50 font-bold shadow-xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                  }`}
+                  title="Today's attendance already counted in Total Classes (evening check)"
+                >
+                  Exclude (Evening)
                 </button>
               </div>
             </div>
@@ -1365,7 +1367,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
             {(() => {
               const bunkClasses = stats?.bunkableClasses || 0;
               const bunkDays = stats?.bunkableDays || 0;
-              if (bunkClasses === 0) return 'Zero buffer (attend next)';
+              if (stats?.hasExamDate) {
+                if (stats.classesUntilExam === 0) {
+                  return isSafe 
+                    ? `Target secured (${percentage.toFixed(1)}% ≥ ${targetThreshold}%) • 0 classes remain` 
+                    : `No classes left to recover (${percentage.toFixed(1)}% < ${targetThreshold}%)`;
+                }
+                if (bunkClasses === 0) {
+                  return isSafe 
+                    ? 'Must attend all remaining classes to stay safe' 
+                    : 'Zero buffer (attend all to recover)';
+                }
+                if (bunkDays >= 1) return `≈ ${bunkDays} ${bunkDays === 1 ? 'day' : 'days'} safe buffer before exam`;
+                return `< 1 full day (${bunkClasses} ${bunkClasses === 1 ? 'period' : 'periods'} buffer before exam)`;
+              }
+              if (bunkClasses === 0) return isSafe ? 'Zero buffer (attend next)' : 'In deficit (attend to recover)';
               if (bunkDays >= 1) return `≈ ${bunkDays} ${bunkDays === 1 ? 'day' : 'days'} safe buffer`;
               return `< 1 full day (${bunkClasses} ${bunkClasses === 1 ? 'period' : 'periods'} buffer)`;
             })()}
@@ -1424,9 +1440,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
         <div className="p-5 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm">
           <div className="flex items-center justify-between gap-2 mb-2">
             <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 block">
-              {stats?.nextClassDateLabel} Risk
+              {stats?.hasClassBeforeExam === false ? 'Exam Horizon' : `${stats?.nextClassDateLabel} Risk`}
             </span>
-            {stats?.nextClassDateLabel === 'Today' ? (
+            {stats?.hasClassBeforeExam === false ? (
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
+                Target Locked
+              </span>
+            ) : stats?.nextClassDateLabel === 'Today' ? (
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-medium">
                 Today Pending
               </span>
@@ -1443,7 +1463,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
             <span className="text-xs text-zinc-400">%</span>
           </div>
           <span className="text-xs text-zinc-500 font-mono">
-            -{stats?.nextClassDrop.toFixed(1)}% if {stats?.dailyClasses} skipped on {stats?.nextClassDateLabel}
+            {stats?.hasClassBeforeExam === false 
+              ? `No more classes scheduled before exam (${state.examDate})`
+              : `-${stats?.nextClassDrop.toFixed(1)}% if ${stats?.dailyClasses} skipped on ${stats?.nextClassDateLabel}`}
           </span>
         </div>
 

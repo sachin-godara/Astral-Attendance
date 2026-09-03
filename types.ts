@@ -29,4 +29,5 @@ export interface AttendanceStats {
   isPossibleToReachTarget: boolean; // Whether target is reachable before exam
   maxAchievablePercentage: number; // Max % if attending every class from now on
   hasExamDate: boolean; // Whether a valid future exam date is provided
+  hasClassBeforeExam: boolean; // Whether at least one working class day remains before the exam
 }

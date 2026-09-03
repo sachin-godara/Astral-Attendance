@@ -163,22 +163,33 @@ export const calculateStats = (state: AttendanceState): AttendanceStats => {
     checkDate.setDate(checkDate.getDate() + 1);
   }
 
+  const hasClassBeforeExam = !validExamDate || (nextWorkingDate !== null && nextWorkingDate < exam);
+
   let nextClassDateLabel = includeToday ? 'Today' : 'Tomorrow';
-  const isSameDayAsToday = nextWorkingDate && nextWorkingDate.getTime() === today.getTime();
-  const isSameDayAsTomorrow = nextWorkingDate && nextWorkingDate.getTime() === tomorrow.getTime();
+  let nextClassImpact = currentPercentage;
+  let nextClassDrop = 0;
 
-  if (isSameDayAsToday) {
-    nextClassDateLabel = 'Today';
-  } else if (isSameDayAsTomorrow) {
-    nextClassDateLabel = 'Tomorrow';
-  } else if (nextWorkingDate) {
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    nextClassDateLabel = dayNames[nextWorkingDate.getDay()];
+  if (validExamDate && !hasClassBeforeExam) {
+    nextClassDateLabel = 'No Classes Left';
+    nextClassImpact = currentPercentage;
+    nextClassDrop = 0;
+  } else {
+    const isSameDayAsToday = nextWorkingDate && nextWorkingDate.getTime() === today.getTime();
+    const isSameDayAsTomorrow = nextWorkingDate && nextWorkingDate.getTime() === tomorrow.getTime();
+
+    if (isSameDayAsToday) {
+      nextClassDateLabel = 'Today';
+    } else if (isSameDayAsTomorrow) {
+      nextClassDateLabel = 'Tomorrow';
+    } else if (nextWorkingDate) {
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      nextClassDateLabel = dayNames[nextWorkingDate.getDay()];
+    }
+
+    const nextClassTotal = totalClasses + dailyClasses;
+    nextClassImpact = nextClassTotal === 0 ? 0 : (attendedClasses / nextClassTotal) * 100;
+    nextClassDrop = Math.max(0, currentPercentage - nextClassImpact);
   }
-
-  const nextClassTotal = totalClasses + dailyClasses;
-  const nextClassImpact = nextClassTotal === 0 ? 0 : (attendedClasses / nextClassTotal) * 100;
-  const nextClassDrop = Math.max(0, currentPercentage - nextClassImpact);
 
   return {
     currentPercentage,
@@ -199,6 +210,7 @@ export const calculateStats = (state: AttendanceState): AttendanceStats => {
     isTomorrowOff: isNextDayOff,
     isPossibleToReachTarget,
     maxAchievablePercentage,
-    hasExamDate: validExamDate
+    hasExamDate: validExamDate,
+    hasClassBeforeExam
   };
 };
