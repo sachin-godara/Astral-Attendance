@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --bg-color: #ffffff;
+  --text-color: #09090b;
+  --card-bg: #ffffff;
+  --card-border: #e4e4e7;
+}
+
+.dark {
+  --bg-color: #09090b;
+  --text-color: #fafafa;
+  --card-bg: #121215;
+  --card-border: #27272a;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.mono-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+}
+
+/* Clean subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-color);
+}
+::-webkit-scrollbar-thumb {
+  background: #a1a1aa;
+  border-radius: 9999px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scroll-container {
+  -webkit-overflow-scrolling: touch;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}

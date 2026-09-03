@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="8" fill="#09090b" />
+  <!-- Graduation Cap outline -->
+  <path d="M16 8L5 13.5L16 19L27 13.5L16 8Z" fill="#ffffff" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M9 15.5V21.5C9 21.5 11.5 24 16 24C20.5 24 23 21.5 23 21.5V15.5" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M27 13.5V19.5" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" />
+</svg>

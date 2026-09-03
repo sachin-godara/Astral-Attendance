@@ -52,8 +52,20 @@ export const getWorkingDaysBetween = (start: Date, end: Date, holidays: string[]
 };
 
 export const calculateStats = (state: AttendanceState): AttendanceStats => {
-  const { totalClasses, absentClasses, examDate, holidays, extraWorkingDays = [] } = state;
+  const { 
+    totalClasses, 
+    absentClasses, 
+    examDate, 
+    holidays, 
+    extraWorkingDays = [],
+    targetPercentage: rawTarget = 75,
+    dailyClasses: rawDaily = 6
+  } = state;
   
+  const targetPercentage = Math.min(100, Math.max(1, Number(rawTarget) || 75));
+  const dailyClasses = Math.max(1, Number(rawDaily) || 6);
+  const targetRatio = targetPercentage / 100;
+
   // Derive attended classes
   const attendedClasses = Math.max(0, totalClasses - absentClasses);
 
@@ -62,27 +74,28 @@ export const calculateStats = (state: AttendanceState): AttendanceStats => {
 
   // 2. Classes until exam
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
   let exam = new Date(examDate);
-  // Fix: Parse examDate as local time to avoid timezone shifts
   if (examDate) {
     const [y, m, d] = examDate.split('-').map(Number);
     exam = new Date(y, m - 1, d);
+    exam.setHours(0, 0, 0, 0);
   }
   
   // If exam date is invalid or in past, assume 0 future days
   const validExamDate = examDate !== '' && !isNaN(exam.getTime()) && exam > today;
   
   const workingDaysLeft = validExamDate ? getWorkingDaysBetween(tomorrow, exam, holidays, extraWorkingDays) : 0;
-  const classesUntilExam = workingDaysLeft * DAILY_CLASSES;
+  const classesUntilExam = workingDaysLeft * dailyClasses;
   
   // 3. Max Achievable logic
   const maxPossibleAttended = attendedClasses + classesUntilExam;
   const maxPossibleTotal = totalClasses + classesUntilExam;
   const maxAchievablePercentage = maxPossibleTotal === 0 ? 0 : (maxPossibleAttended / maxPossibleTotal) * 100;
-  const isPossibleToReachTarget = maxAchievablePercentage >= TARGET_PERCENTAGE;
+  const isPossibleToReachTarget = maxAchievablePercentage >= targetPercentage;
 
   // 4. Bunkable & Required Logic
   let bunkableClasses = 0;
@@ -91,55 +104,87 @@ export const calculateStats = (state: AttendanceState): AttendanceStats => {
   if (validExamDate) {
     // Scenario A: Exam Date Set -> Calculate based on Total Period until Exam
     const totalClassesAtEnd = totalClasses + classesUntilExam;
-    const minAttendedForTarget = Math.ceil((TARGET_PERCENTAGE / 100) * totalClassesAtEnd);
+    const minAttendedForTarget = Math.ceil(targetRatio * totalClassesAtEnd);
     
     // Required to attend in future to hit target by exam
     const futureRequired = Math.max(0, minAttendedForTarget - attendedClasses);
     requiredClasses = futureRequired;
     
     // Bunkable: Any future class we don't NEED to attend
-    // If futureRequired > classesUntilExam, it's impossible (handled by isPossibleToReachTarget), 
-    // but bunkable is 0.
     bunkableClasses = Math.max(0, classesUntilExam - futureRequired);
 
   } else {
     // Scenario B: No Exam Date -> Calculate Immediate "Safe Buffer" or "Recovery Need"
-    
-    if (currentPercentage >= TARGET_PERCENTAGE) {
-        // Safe: How many can I miss consecutively NOW?
-        // (A) / (C + k) >= 0.75  =>  A >= 0.75C + 0.75k  =>  0.75k <= A - 0.75C
-        // k <= (A - 0.75C) / 0.75  =>  k <= (A/0.75) - C
-        const maxSafeTotal = Math.floor(attendedClasses / (TARGET_PERCENTAGE / 100));
-        bunkableClasses = Math.max(0, maxSafeTotal - totalClasses);
+    if (currentPercentage >= targetPercentage) {
+      // Safe: How many can I miss consecutively NOW?
+      const maxSafeTotal = Math.floor(attendedClasses / targetRatio);
+      bunkableClasses = Math.max(0, maxSafeTotal - totalClasses);
     } else {
-        // Unsafe: How many must I attend consecutively NOW to recover?
-        // (A + k) / (C + k) >= 0.75
-        // A + k >= 0.75C + 0.75k
-        // 0.25k >= 0.75C - A
-        // k >= (0.75C - A) / 0.25
-        if (totalClasses > 0) {
-            const needed = (0.75 * totalClasses - attendedClasses) / 0.25;
-            requiredClasses = Math.ceil(needed);
-        }
+      // Unsafe: How many must I attend consecutively NOW to recover?
+      if (totalClasses > 0 && targetRatio < 1) {
+        const needed = (targetRatio * totalClasses - attendedClasses) / (1 - targetRatio);
+        requiredClasses = Math.ceil(Math.max(0, needed));
+      }
     }
   }
 
-  const bunkableDays = Math.floor(bunkableClasses / DAILY_CLASSES);
-  const requiredDays = Math.ceil(requiredClasses / DAILY_CLASSES);
+  const bunkableDays = Math.floor(bunkableClasses / dailyClasses);
+  const requiredDays = Math.ceil(requiredClasses / dailyClasses);
 
-  // 6. Tomorrow Impact
-  const tomorrowTotal = totalClasses + DAILY_CLASSES;
-  const tomorrowPercentage = (attendedClasses / tomorrowTotal) * 100;
+  // 5. Smart Next Working Day Risk Calculation
+  const holidaySet = new Set(holidays);
+  const workingSet = new Set(extraWorkingDays);
+
+  const checkDate = new Date(tomorrow);
+  let nextWorkingDate: Date | null = null;
+  let isTomorrowOff = false;
+
+  // Check up to 30 days ahead to find the next instructional day
+  for (let step = 0; step < 30; step++) {
+    const y = checkDate.getFullYear();
+    const m = String(checkDate.getMonth() + 1).padStart(2, '0');
+    const d = String(checkDate.getDate()).padStart(2, '0');
+    const dStr = `${y}-${m}-${d}`;
+    const dayOfWeek = checkDate.getDay();
+    const isWknd = dayOfWeek === 0 || dayOfWeek === 6;
+    const isClassDay = (!isWknd && !holidaySet.has(dStr)) || (isWknd && workingSet.has(dStr));
+
+    if (step === 0 && !isClassDay) {
+      isTomorrowOff = true;
+    }
+
+    if (isClassDay) {
+      nextWorkingDate = new Date(checkDate);
+      break;
+    }
+    checkDate.setDate(checkDate.getDate() + 1);
+  }
+
+  let nextClassDateLabel = 'Tomorrow';
+  if (isTomorrowOff && nextWorkingDate) {
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    nextClassDateLabel = dayNames[nextWorkingDate.getDay()];
+  }
+
+  const nextClassTotal = totalClasses + dailyClasses;
+  const nextClassImpact = nextClassTotal === 0 ? 0 : (attendedClasses / nextClassTotal) * 100;
+  const nextClassDrop = Math.max(0, currentPercentage - nextClassImpact);
 
   return {
     currentPercentage,
-    isSafe: currentPercentage >= TARGET_PERCENTAGE,
+    isSafe: currentPercentage >= targetPercentage,
+    targetPercentage,
+    dailyClasses,
     classesUntilExam,
     bunkableClasses,
     bunkableDays,
     requiredClasses,
     requiredDays,
-    tomorrowImpact: tomorrowPercentage,
+    tomorrowImpact: nextClassImpact,
+    nextClassImpact,
+    nextClassDrop,
+    nextClassDateLabel,
+    isTomorrowOff,
     isPossibleToReachTarget,
     maxAchievablePercentage,
     hasExamDate: validExamDate

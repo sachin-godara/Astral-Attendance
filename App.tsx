@@ -1,30 +1,29 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { Hero } from './components/Hero';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Dashboard } from './components/Dashboard';
-import { CustomCursor } from './components/CustomCursor';
 import { Background } from './components/Background';
-import { SupportModal } from './components/SupportModal';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { Moon, Sun, Code2, GraduationCap } from 'lucide-react';
+
+const SupportModal = lazy(() => import('./components/SupportModal').then(m => ({ default: m.SupportModal })));
 
 const App: React.FC = () => {
-  const dashboardRef = useRef<HTMLDivElement>(null);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
-  const [isPerformanceMode, setIsPerformanceMode] = useState(true);
-  const [isDarkMode, setIsDarkMode] = useState(() => {
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
     const saved = localStorage.getItem('isDarkMode');
-    return saved !== null ? JSON.parse(saved) : true;
+    if (saved !== null) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
   useEffect(() => {
-    if (isPerformanceMode) {
-      document.body.classList.add('perf-mode');
-    } else {
-      document.body.classList.remove('perf-mode');
-    }
-  }, [isPerformanceMode]);
-
-  useEffect(() => {
-    localStorage.setItem('isDarkMode', JSON.stringify(isDarkMode));
+    try {
+      localStorage.setItem('isDarkMode', JSON.stringify(isDarkMode));
+    } catch (e) {}
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
     } else {
@@ -32,82 +31,87 @@ const App: React.FC = () => {
     }
   }, [isDarkMode]);
 
-  const scrollToDashboard = () => {
-    dashboardRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const toggleTheme = () => {
+    setIsDarkMode(prev => !prev);
   };
 
-  const { scrollYProgress } = useScroll();
-  const y = useTransform(scrollYProgress, [0, 1], ['0%', '20%']);
-
   return (
-    <div className={`min-h-screen relative selection:bg-cyan-500/30 selection:text-cyan-100 ${isPerformanceMode ? 'perf-mode' : ''} transition-colors duration-500`}>
-      <CustomCursor isPerformanceMode={isPerformanceMode} />
-      <Background isPerformanceMode={isPerformanceMode} />
+    <div className="min-h-screen relative flex flex-col bg-white dark:bg-[#09090b] text-zinc-950 dark:text-zinc-50 transition-colors duration-200 selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black">
+      <Background isDarkMode={isDarkMode} />
       
-      {/* Navigation / Header */}
-      <nav className="fixed top-0 left-0 right-0 z-40 p-4 md:p-6 flex justify-between items-center mix-blend-difference text-white">
-        <span className="font-bold text-lg md:text-xl tracking-tighter">AST.ATTD</span>
-        
-        <div className="flex items-center gap-3 md:gap-6">
+      {/* Architectural Minimal Header */}
+      <header className="sticky top-0 z-40 w-full border-b border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-[#09090b]/90 backdrop-blur-md">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          
+          {/* Brand Logo & Name */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-black dark:bg-white text-white dark:text-black flex items-center justify-center font-bold shadow-xs">
+              <GraduationCap className="w-4 h-4" />
+            </div>
+            <span className="font-bold text-base tracking-tight text-zinc-900 dark:text-zinc-50">
+              Astral
+            </span>
+          </div>
+          
+          {/* Navigation Controls */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Dark / Light Mode Toggle */}
             <button 
-                onClick={() => setIsDarkMode(!isDarkMode)}
-                className={`flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full border transition-all duration-300 ${isDarkMode ? 'bg-slate-800/50 border-slate-700 text-yellow-400' : 'bg-white border-slate-200 text-slate-600 shadow-lg'}`}
-                title={isDarkMode ? "Switch to Solar Mode" : "Switch to Nebula Mode"}
+              id="theme-toggle-btn"
+              onClick={toggleTheme}
+              className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors"
+              title={isDarkMode ? "Light Mode" : "Dark Mode"}
+              aria-label={isDarkMode ? "Light Mode" : "Dark Mode"}
             >
-                {isDarkMode ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 md:h-5 md:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 5a7 7 0 100 14 7 7 0 000-14z" />
-                    </svg>
-                ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 md:h-5 md:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                    </svg>
-                )}
+              {isDarkMode ? (
+                <Sun className="w-4 h-4" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
             </button>
 
-            <button 
-                onClick={() => setIsPerformanceMode(!isPerformanceMode)}
-                className={`flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full border transition-all duration-300 text-[10px] md:text-xs font-bold uppercase tracking-widest ${isPerformanceMode ? 'bg-cyan-500 border-cyan-400 text-black shadow-[0_0_15px_rgba(34,211,238,0.5)]' : 'bg-white/5 border-white/20 text-white/60 hover:text-white hover:border-white/40'}`}
-                title={isPerformanceMode ? "Switch to Astral Quality" : "Switch to Performance Mode"}
+            {/* Developer Support Trigger */}
+            <button
+              id="support-modal-btn"
+              onClick={() => setIsSupportOpen(true)}
+              className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors"
+              title="About developer"
+              aria-label="About developer"
             >
-                <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 md:h-4 md:w-4 ${isPerformanceMode ? 'animate-bounce' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                <span className="hidden sm:inline">{isPerformanceMode ? 'Warp Mode' : 'Astral Mode'}</span>
+              <Code2 className="w-4 h-4" />
             </button>
-            <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="text-xs font-mono opacity-60 hover:opacity-100 transition-opacity hidden sm:block">v1.1.0</a>
-        </div>
-      </nav>
+          </div>
 
-      {/* Main Content */}
-      <main className="relative z-10">
-        <Hero onStart={scrollToDashboard} />
-        
-        <div ref={dashboardRef} className="relative z-20 bg-slate-50/50 dark:bg-slate-950/50 backdrop-blur-sm border-t border-black/5 dark:border-white/5">
-             <Dashboard isPerformanceMode={isPerformanceMode} isDarkMode={isDarkMode} />
-             
-             {/* Footer */}
-             <footer className="py-8 md:py-12 border-t border-white/5 bg-black/40 backdrop-blur-md">
-                <div className="max-w-7xl mx-auto px-6 md:px-12 flex flex-col md:flex-row justify-between items-center text-slate-500 text-xs md:text-sm">
-                    <p>
-                        © {new Date().getFullYear()} <span className="hover:text-cyan-400 transition-colors">Astral Attendance</span>. All rights reserved.
-                    </p>
-                    <div className="flex gap-4 md:gap-6 mt-4 md:mt-0 items-center">
-                        <span className="hover:text-cyan-400 cursor-pointer transition-colors">Privacy</span>
-                        <span className="hover:text-cyan-400 cursor-pointer transition-colors">Terms</span>
-                        <button 
-                          onClick={() => setIsSupportOpen(true)}
-                          className="hover:text-cyan-400 cursor-pointer transition-colors focus:outline-none"
-                        >
-                          Support
-                        </button>
-                    </div>
-                </div>
-             </footer>
         </div>
+      </header>
+
+      {/* Main Content Area */}
+      <main className="flex-1">
+        <Dashboard onOpenSupport={() => setIsSupportOpen(true)} isDarkMode={isDarkMode} />
       </main>
 
-      <SupportModal isOpen={isSupportOpen} onClose={() => setIsSupportOpen(false)} isPerformanceMode={isPerformanceMode} />
+      {/* Minimal Footer */}
+      <footer className="w-full border-t border-zinc-200 dark:border-zinc-800 py-5 mt-auto">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 flex items-center justify-between text-xs font-mono text-zinc-400">
+          <p>© {new Date().getFullYear()} Astral</p>
+          <button 
+            onClick={() => setIsSupportOpen(true)}
+            className="hover:text-black dark:hover:text-white transition-colors"
+          >
+            Developer
+          </button>
+        </div>
+      </footer>
+
+      {/* Developer Modal (Lazy loaded on demand) */}
+      {isSupportOpen && (
+        <Suspense fallback={null}>
+          <SupportModal 
+            isOpen={isSupportOpen} 
+            onClose={() => setIsSupportOpen(false)} 
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

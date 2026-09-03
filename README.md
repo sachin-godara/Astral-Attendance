@@ -1,20 +1,52 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Astral Attendance
 
-# Run and deploy your AI Studio app
+A clean, minimalist black-and-white attendance tracker and predictive analytics calculator for students.
 
-This contains everything you need to run your app locally.
+## Features
 
-View your app in AI Studio: https://ai.studio/apps/cbd16932-29e1-4d35-9757-48a566bac50b
+- **Single-Aggregate Tracking**: Simple, clutter-free tracking for aggregate attendance.
+- **Configurable Academic Criteria**: Customize your target percentage (65%, 70%, 75%, 80%, 85%, or custom) and daily period counts.
+- **What-If Bunk Sandbox**: Interactive simulation sliders to test the exact impact of future skipped or attended days without mutating saved data.
+- **Dynamic Circular Gauge**: Real-time visualization with customizable target tick mark and 3-tier status badges (Comfortable, Borderline, Deficit).
+- **Calendar-Aware Forecast**: 7-day predictive trajectory accounting for actual weekends, designated holidays, and extra working sessions.
+- **Instructional Day Lookahead**: Smart next-class risk calculations skipping non-working days.
+- **Data Privacy & Portability**: 100% client-side storage with localStorage persistence, undo/restore support, and JSON backup export and import.
+- **Theme Support**: Seamless dark and light modes with system preference detection.
 
-## Run Locally
+## Getting Started
 
-**Prerequisites:**  Node.js
+### Prerequisites
+- Node.js (v18+)
+- npm or bun
 
+### Installation
+```bash
+npm install
+```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### Running Locally
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Building for Production
+```bash
+npm run build
+```
+
+### Previewing the Production Build
+```bash
+npm run preview
+```
+
+## Deploying to Netlify
+
+This project is pre-configured for instant Netlify deployment:
+- **Build command**: `npm run build`
+- **Publish directory**: `dist`
+- **Netlify configuration**: Handled automatically via `netlify.toml` with SPA redirects.
+
+## License
+MIT
+

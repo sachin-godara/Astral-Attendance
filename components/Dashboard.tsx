@@ -1,22 +1,62 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { motion, AnimatePresence, useSpring } from 'framer-motion';
-import { AttendanceState, AttendanceStats } from '../types';
+import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense, lazy } from 'react';
+import { motion, useSpring } from 'motion/react';
+import { 
+  Calendar as CalendarIcon, 
+  CheckCircle2, 
+  AlertTriangle, 
+  RotateCcw,
+  Sparkles,
+  ArrowDownRight,
+  ArrowUpRight,
+  History,
+  Check,
+  X,
+  Settings,
+  Sliders,
+  Download,
+  Upload,
+  Plus,
+  Minus
+} from 'lucide-react';
+import { AttendanceState } from '../types';
 import { calculateStats } from '../utils/calculations';
 import { Modal } from './Modal';
-import { Calendar } from './Calendar';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  ReferenceLine 
+} from 'recharts';
 
-const AnimatedCounter: React.FC<{ value: number; className?: string; toFixed?: number; isPerformanceMode?: boolean }> = ({ value, className, toFixed = 0, isPerformanceMode = false }) => {
+const Calendar = lazy(() => import('./Calendar').then(m => ({ default: m.Calendar })));
+
+interface SavedSession {
+  state: AttendanceState;
+  inputMode: 'absent' | 'present';
+  timestamp: string;
+}
+
+interface ToastMessage {
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}
+
+const AnimatedCounter: React.FC<{ value: number; className?: string; toFixed?: number }> = ({ 
+  value, 
+  className, 
+  toFixed = 0 
+}) => {
   const ref = useRef<HTMLSpanElement>(null);
-  const springValue = useSpring(value, { stiffness: 60, damping: 20 });
+  const springValue = useSpring(value, { stiffness: 80, damping: 20 });
 
   useEffect(() => {
-    if (isPerformanceMode) {
-        springValue.jump(value);
-    } else {
-        springValue.set(value);
-    }
-  }, [value, springValue, isPerformanceMode]);
+    springValue.set(value);
+  }, [value, springValue]);
 
   useEffect(() => {
     return springValue.on("change", (latest) => {
@@ -29,57 +69,141 @@ const AnimatedCounter: React.FC<{ value: number; className?: string; toFixed?: n
   return <span ref={ref} className={className}>{value.toFixed(toFixed)}</span>;
 };
 
-export const Dashboard: React.FC<{ isPerformanceMode?: boolean; isDarkMode?: boolean }> = ({ isPerformanceMode = false, isDarkMode = true }) => {
+interface DashboardProps {
+  onOpenSupport?: () => void;
+  isDarkMode?: boolean;
+}
+
+export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
+  const [simBunkDays, setSimBunkDays] = useState(0);
+  const [simAttendDays, setSimAttendDays] = useState(0);
+
   const [state, setState] = useState<AttendanceState>(() => {
     const saved = localStorage.getItem('attendanceState');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed.totalClasses === 'number') {
+          return {
+            totalClasses: parsed.totalClasses,
+            absentClasses: parsed.absentClasses ?? 0,
+            examDate: parsed.examDate ?? '',
+            holidays: Array.isArray(parsed.holidays) ? parsed.holidays : [],
+            extraWorkingDays: Array.isArray(parsed.extraWorkingDays) ? parsed.extraWorkingDays : [],
+            targetPercentage: parsed.targetPercentage ?? 75,
+            dailyClasses: parsed.dailyClasses ?? 6
+          };
+        }
       } catch (e) {
         console.error('Failed to parse saved state', e);
       }
     }
+    const backup = localStorage.getItem('lastAttendanceBackup') || localStorage.getItem('lastActiveSession');
+    if (backup) {
+      try {
+        const parsedBackup = JSON.parse(backup);
+        if (parsedBackup?.state?.totalClasses) {
+          return {
+            ...parsedBackup.state,
+            targetPercentage: parsedBackup.state.targetPercentage ?? 75,
+            dailyClasses: parsedBackup.state.dailyClasses ?? 6
+          };
+        }
+      } catch (e) {}
+    }
     return {
-      totalClasses: 0,
-      absentClasses: 0,
+      totalClasses: 84,
+      absentClasses: 18,
       examDate: '',
       holidays: [],
-      extraWorkingDays: []
+      extraWorkingDays: [],
+      targetPercentage: 75,
+      dailyClasses: 6
     };
   });
 
-  useEffect(() => {
-    localStorage.setItem('attendanceState', JSON.stringify(state));
-  }, [state]);
+  const [inputMode, setInputMode] = useState<'absent' | 'present'>(() => {
+    const saved = localStorage.getItem('attendanceInputMode');
+    return saved === 'present' ? 'present' : 'absent';
+  });
 
-  const [stats, setStats] = useState<AttendanceStats | null>(null);
+  const [lastBackup, setLastBackup] = useState<SavedSession | null>(() => {
+    const backup = localStorage.getItem('lastAttendanceBackup') || localStorage.getItem('lastActiveSession');
+    if (backup) {
+      try {
+        return JSON.parse(backup);
+      } catch (e) {
+        console.error('Failed to parse last backup', e);
+      }
+    }
+    return null;
+  });
+
+  const [lastSavedTime, setLastSavedTime] = useState<string>(() => {
+    return localStorage.getItem('attendanceLastSavedTime') || '';
+  });
+
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem('attendanceState', JSON.stringify(state));
+        localStorage.setItem('attendanceInputMode', inputMode);
+        const now = new Date().toISOString();
+        localStorage.setItem('attendanceLastSavedTime', now);
+        setLastSavedTime(now);
+
+        if (state.totalClasses > 0) {
+          const activeSession: SavedSession = {
+            state,
+            inputMode,
+            timestamp: now
+          };
+          localStorage.setItem('lastActiveSession', JSON.stringify(activeSession));
+        }
+      } catch (e) {
+        console.error('Failed to save to localStorage', e);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [state, inputMode]);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  const stats = useMemo(() => calculateStats(state), [state]);
   const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
-  const [inputMode, setInputMode] = useState<'absent' | 'present'>('absent');
-
-  useEffect(() => {
-    setStats(calculateStats(state));
-  }, [state]);
 
   const handleChange = useCallback((field: keyof AttendanceState, value: any) => {
+
     setState(prev => {
-        const newState = { ...prev, [field]: value };
-        
-        if (field === 'totalClasses') {
-            const newTotal = Math.max(0, Number(value));
-            newState.totalClasses = newTotal;
-            if (newState.absentClasses > newTotal) {
-                newState.absentClasses = newTotal;
-            }
-        } else if (field === 'absentClasses') {
-            const newAbsent = Math.max(0, Number(value));
-            if (newAbsent > newState.totalClasses) {
-                newState.absentClasses = newState.totalClasses;
-            } else {
-                newState.absentClasses = newAbsent;
-            }
+      const newState = { ...prev, [field]: value };
+      
+      if (field === 'totalClasses') {
+        const newTotal = Math.max(0, Number(value));
+        newState.totalClasses = newTotal;
+        if (newState.absentClasses > newTotal) {
+          newState.absentClasses = newTotal;
         }
-        
-        return newState;
+      } else if (field === 'absentClasses') {
+        const newAbsent = Math.max(0, Number(value));
+        if (newAbsent > newState.totalClasses) {
+          newState.absentClasses = newState.totalClasses;
+        } else {
+          newState.absentClasses = newAbsent;
+        }
+      }
+      
+      return newState;
     });
   }, []);
 
@@ -94,371 +218,1098 @@ export const Dashboard: React.FC<{ isPerformanceMode?: boolean; isDarkMode?: boo
     }
   };
 
+  const handleRestore = (sessionToRestore?: SavedSession | null) => {
+    const target = sessionToRestore || lastBackup;
+    if (target && target.state) {
+      setState(target.state);
+      if (target.inputMode) {
+        setInputMode(target.inputMode);
+      }
+      setToast({
+        message: `Restored last data: ${target.state.totalClasses} classes (${target.state.absentClasses} absent)`
+      });
+    }
+  };
+
+  const handleReset = () => {
+    if (state.totalClasses > 0) {
+      const backup: SavedSession = {
+        state: { ...state },
+        inputMode,
+        timestamp: new Date().toISOString()
+      };
+      try {
+        localStorage.setItem('lastAttendanceBackup', JSON.stringify(backup));
+        setLastBackup(backup);
+      } catch (e) {}
+
+      setToast({
+        message: `Data cleared. Previous session saved.`,
+        actionLabel: 'Restore Last Data',
+        onAction: () => handleRestore(backup)
+      });
+    }
+
+    setState(prev => ({
+      totalClasses: 0,
+      absentClasses: 0,
+      examDate: '',
+      holidays: [],
+      extraWorkingDays: [],
+      targetPercentage: prev.targetPercentage ?? 75,
+      dailyClasses: prev.dailyClasses ?? 6
+    }));
+  };
+
+  const handleExportJson = () => {
+    try {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `astral-attendance-backup-${new Date().toISOString().split('T')[0]}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      setToast({ message: "Backup downloaded as JSON." });
+    } catch (e) {
+      setToast({ message: "Failed to export backup." });
+    }
+  };
+
+  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (parsed && typeof parsed.totalClasses === 'number' && typeof parsed.absentClasses === 'number') {
+          setState({
+            totalClasses: Math.max(0, parsed.totalClasses),
+            absentClasses: Math.max(0, parsed.absentClasses),
+            examDate: parsed.examDate || '',
+            holidays: Array.isArray(parsed.holidays) ? parsed.holidays : [],
+            extraWorkingDays: Array.isArray(parsed.extraWorkingDays) ? parsed.extraWorkingDays : [],
+            targetPercentage: parsed.targetPercentage ?? 75,
+            dailyClasses: parsed.dailyClasses ?? 6
+          });
+          setToast({ message: "Attendance data successfully imported." });
+        } else {
+          setToast({ message: "Invalid backup file structure." });
+        }
+      } catch (err) {
+        setToast({ message: "Failed to parse JSON file." });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleLoadSample = () => {
+    if (state.totalClasses > 0 && (state.totalClasses !== 96 || state.absentClasses !== 20)) {
+      const backup: SavedSession = {
+        state: { ...state },
+        inputMode,
+        timestamp: new Date().toISOString()
+      };
+      try {
+        localStorage.setItem('lastAttendanceBackup', JSON.stringify(backup));
+        setLastBackup(backup);
+      } catch (e) {}
+
+      setToast({
+        message: 'Sample data loaded.',
+        actionLabel: 'Restore Your Data',
+        onAction: () => handleRestore(backup)
+      });
+    }
+
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 45);
+    const dateStr = futureDate.toISOString().split('T')[0];
+
+    setState(prev => ({
+      totalClasses: 96,
+      absentClasses: 20,
+      examDate: dateStr,
+      holidays: [],
+      extraWorkingDays: [],
+      targetPercentage: prev.targetPercentage ?? 75,
+      dailyClasses: prev.dailyClasses ?? 6
+    }));
+  };
+
   const toggleHoliday = useCallback((date: string, isWeekend: boolean) => {
     setState(prev => {
-        if (isWeekend) {
-            const isWorking = prev.extraWorkingDays.includes(date);
-            if (isWorking) {
-                return { ...prev, extraWorkingDays: prev.extraWorkingDays.filter(d => d !== date) };
-            } else {
-                return { ...prev, extraWorkingDays: [...prev.extraWorkingDays, date] };
-            }
+      if (isWeekend) {
+        const isWorking = prev.extraWorkingDays.includes(date);
+        if (isWorking) {
+          return { ...prev, extraWorkingDays: prev.extraWorkingDays.filter(d => d !== date) };
         } else {
-            const isHoliday = prev.holidays.includes(date);
-            if (isHoliday) {
-                return { ...prev, holidays: prev.holidays.filter(d => d !== date) };
-            } else {
-                return { ...prev, holidays: [...prev.holidays, date] };
-            }
+          return { ...prev, extraWorkingDays: [...prev.extraWorkingDays, date] };
         }
+      } else {
+        const isHoliday = prev.holidays.includes(date);
+        if (isHoliday) {
+          return { ...prev, holidays: prev.holidays.filter(d => d !== date) };
+        } else {
+          return { ...prev, holidays: [...prev.holidays, date] };
+        }
+      }
     });
   }, []);
 
+  const attendedCount = Math.max(0, state.totalClasses - state.absentClasses);
+  const attendanceInputValue = inputMode === 'absent' ? state.absentClasses : attendedCount;
+  const holidaysCount = state.holidays.length + state.extraWorkingDays.length;
+
+  // Calendar-Aware 7-Day Trajectory Forecast
   const projectionData = useMemo(() => {
     const data = [];
     const currentAttended = Math.max(0, state.totalClasses - state.absentClasses);
     const startPct = state.totalClasses === 0 ? 0 : (currentAttended / state.totalClasses) * 100;
+    const effectiveDaily = state.dailyClasses ?? 6;
 
     data.push({
-      name: 'Now',
+      name: 'Today',
       attendAll: parseFloat(startPct.toFixed(1)),
       bunkAll: parseFloat(startPct.toFixed(1)),
     });
 
-    for (let i = 1; i <= 7; i++) {
-        const added = i * 6;
-        const newTotal = state.totalClasses + added;
-        const attendedIfAll = currentAttended + added;
-        const attendedIfNone = currentAttended;
+    const holidaySet = new Set(state.holidays);
+    const workingSet = new Set(state.extraWorkingDays);
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-        data.push({
-            name: `+${i}d`,
-            attendAll: parseFloat(((attendedIfAll / newTotal) * 100).toFixed(1)),
-            bunkAll: parseFloat(((attendedIfNone / newTotal) * 100).toFixed(1)),
-        });
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+
+    let cumulativeTotal = state.totalClasses;
+    let cumulativeAttendedAll = currentAttended;
+    let cumulativeAttendedBunk = currentAttended;
+
+    for (let i = 1; i <= 7; i++) {
+      const targetDate = new Date(todayDate);
+      targetDate.setDate(todayDate.getDate() + i);
+
+      const y = targetDate.getFullYear();
+      const m = String(targetDate.getMonth() + 1).padStart(2, '0');
+      const d = String(targetDate.getDate()).padStart(2, '0');
+      const dStr = `${y}-${m}-${d}`;
+      const dayOfWeek = targetDate.getDay();
+      const isWknd = dayOfWeek === 0 || dayOfWeek === 6;
+      const isClassDay = (!isWknd && !holidaySet.has(dStr)) || (isWknd && workingSet.has(dStr));
+
+      const added = isClassDay ? effectiveDaily : 0;
+      cumulativeTotal += added;
+      cumulativeAttendedAll += added;
+
+      const attendPct = cumulativeTotal === 0 ? 0 : (cumulativeAttendedAll / cumulativeTotal) * 100;
+      const bunkPct = cumulativeTotal === 0 ? 0 : (cumulativeAttendedBunk / cumulativeTotal) * 100;
+
+      const dayLabel = isClassDay ? dayNames[dayOfWeek] : `${dayNames[dayOfWeek]}*`;
+
+      data.push({
+        name: dayLabel,
+        attendAll: parseFloat(attendPct.toFixed(1)),
+        bunkAll: parseFloat(bunkPct.toFixed(1)),
+      });
     }
     return data;
-  }, [state.totalClasses, state.absentClasses]);
+  }, [state.totalClasses, state.absentClasses, state.dailyClasses, state.holidays, state.extraWorkingDays]);
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
-  };
+  const percentage = stats?.currentPercentage || 0;
+  const targetThreshold = stats?.targetPercentage || 75;
+  const isSafe = stats?.isSafe || false;
+  const marginFromThreshold = percentage - targetThreshold;
 
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: { y: 0, opacity: 1 }
-  };
+  // Simulator Calculations
+  const effectiveDaily = state.dailyClasses ?? 6;
+  const simTotal = state.totalClasses + (simBunkDays + simAttendDays) * effectiveDaily;
+  const simAttended = attendedCount + simAttendDays * effectiveDaily;
+  const simPercentage = simTotal === 0 ? 0 : (simAttended / simTotal) * 100;
+  const simDelta = simPercentage - percentage;
+  const isSimulationActive = simBunkDays > 0 || simAttendDays > 0;
 
-  const attendedCount = Math.max(0, state.totalClasses - state.absentClasses);
-  const attendanceInputValue = inputMode === 'absent' ? state.absentClasses : attendedCount;
-  const customHolidaysCount = state.holidays.length;
 
   return (
-    <div className="min-h-screen py-8 px-4 sm:px-6 md:py-16 md:px-12 max-w-7xl mx-auto overflow-x-hidden">
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-10 lg:gap-12"
-      >
-        {/* Controls Section */}
-        <motion.div variants={itemVariants} className="space-y-6 md:space-y-8">
-          <div className="glass-panel p-6 sm:p-8 rounded-3xl neon-glow relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl transform translate-x-16 -translate-y-16"></div>
-            
-            <h2 className="text-2xl md:text-3xl font-bold mb-8 text-slate-900 dark:text-white">Input Data</h2>
-            
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-slate-500 dark:text-slate-400 text-xs md:text-sm uppercase tracking-widest font-bold">Total Classes Held</label>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  enterKeyHint="next"
-                  min="0"
-                  value={state.totalClasses || ''}
-                  onChange={(e) => handleChange('totalClasses', parseInt(e.target.value) || 0)}
-                  className="w-full bg-slate-100 dark:bg-slate-900/40 border border-slate-300 dark:border-slate-700/50 rounded-2xl px-5 py-4 text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500 transition-all text-lg appearance-none"
-                  placeholder="e.g. 120"
-                />
-              </div>
+    <div id="attendance-dashboard" className="w-full max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-10">
+      
+      {/* Header bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-3 sm:pb-4 mb-4 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="flex items-center justify-between sm:justify-start gap-2.5">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-zinc-950 dark:text-zinc-50 font-mono">
+              Attendance
+            </h1>
+            <div 
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-[11px] font-mono text-zinc-500 select-none"
+              title={lastSavedTime ? `Remembered & saved (${new Date(lastSavedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : "Automatically saved"}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <span>Saved</span>
+            </div>
+          </div>
+        </div>
 
-              <div className="space-y-2">
-                <div className="flex justify-between items-center flex-wrap gap-2">
-                    <label className="text-slate-500 dark:text-slate-400 text-xs md:text-sm uppercase tracking-widest font-bold">
-                        {inputMode === 'absent' ? 'Classes Absent' : 'Classes Attended'}
-                    </label>
-                    
-                    <div className="bg-slate-200 dark:bg-slate-950/80 p-1 rounded-xl flex text-xs sm:text-sm font-bold border border-slate-300 dark:border-slate-800 w-full sm:w-auto">
-                        <button
-                            onClick={() => setInputMode('absent')}
-                            className={`flex-1 sm:flex-none px-6 py-2.5 rounded-lg transition-all ${inputMode === 'absent' ? 'bg-red-500/20 text-red-600 dark:text-red-300 shadow-sm' : 'text-slate-500 hover:text-slate-400'}`}
-                        >
-                            Absent
-                        </button>
-                        <button
-                            onClick={() => setInputMode('present')}
-                            className={`flex-1 sm:flex-none px-6 py-2.5 rounded-lg transition-all ${inputMode === 'present' ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 shadow-sm' : 'text-slate-500 hover:text-slate-400'}`}
-                        >
-                            Present
-                        </button>
-                    </div>
-                </div>
-                
-                <style>{`
-                  /* Hide number spinners */
-                  input[type=number]::-webkit-inner-spin-button, 
-                  input[type=number]::-webkit-outer-spin-button { 
-                    -webkit-appearance: none; 
-                    margin: 0; 
-                  }
-                  input[type=number] {
-                    -moz-appearance: textfield;
-                  }
-                `}</style>
-                
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  enterKeyHint="next"
-                  min="0"
-                  max={state.totalClasses}
-                  value={attendanceInputValue || ''}
-                  onChange={(e) => handleAttendanceChange(parseInt(e.target.value) || 0)}
-                  className={`w-full bg-slate-100 dark:bg-slate-900/40 border border-slate-300 dark:border-slate-700/50 rounded-2xl px-5 py-4 text-slate-900 dark:text-white focus:outline-none transition-all text-lg appearance-none ${inputMode === 'absent' ? 'focus:border-red-500/50' : 'focus:border-cyan-500/50'}`}
-                  placeholder={inputMode === 'absent' ? "e.g. 15" : "e.g. 105"}
-                />
-              </div>
+        {/* Action Controls */}
+        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 sm:pb-0 scroll-container">
+          <input 
+            ref={fileInputRef} 
+            type="file" 
+            accept=".json" 
+            onChange={handleImportJson} 
+            className="hidden" 
+            aria-label="Import attendance JSON backup"
+          />
 
-              <div className="space-y-2">
-                <label className="text-slate-500 dark:text-slate-400 text-xs md:text-sm uppercase tracking-widest font-bold">Exam Start Date</label>
-                <input
-                  type="date"
-                  value={state.examDate}
-                  onChange={(e) => handleChange('examDate', e.target.value)}
-                  className="w-full bg-slate-100 dark:bg-slate-900/40 border border-slate-300 dark:border-slate-700/50 rounded-2xl px-5 py-4 text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500 transition-all text-lg dark:[color-scheme:dark]"
-                />
-                {stats?.hasExamDate && (
-                    <div className="flex justify-between items-center px-1">
-                        <span className="text-xs text-slate-500 font-medium">
-                            {stats.classesUntilExam} classes remaining
-                        </span>
-                        <span className="text-xs text-slate-600">
-                            (Includes {state.extraWorkingDays.length} extra days)
-                        </span>
-                    </div>
-                )}
-              </div>
+          {/* Settings Trigger */}
+          <button
+            id="btn-settings-toggle"
+            type="button"
+            onClick={() => {
+              setIsSettingsOpen(prev => !prev);
+              if (isSimulatorOpen) setIsSimulatorOpen(false);
+            }}
+            title="Configure target percentage and classes per day"
+            className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl border text-xs font-mono font-medium transition-all shrink-0 cursor-pointer min-h-[38px] ${
+              isSettingsOpen 
+                ? 'border-black bg-black text-white dark:border-white dark:bg-white dark:text-black shadow-xs' 
+                : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+            }`}
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>Target: {targetThreshold}%</span>
+          </button>
 
-               <div className="space-y-2">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-slate-400 text-xs md:text-sm uppercase tracking-widest font-bold">Calendar</label>
-                  </div>
-                  
-                  <button 
-                    onClick={() => setIsHolidayModalOpen(true)}
-                    className="w-full bg-slate-100 dark:bg-slate-900/40 border border-slate-300 dark:border-slate-700/50 hover:border-cyan-500/50 hover:bg-slate-200 dark:hover:bg-slate-800/40 rounded-2xl px-5 py-4 text-left flex justify-between items-center group transition-all"
+          {/* Simulator Trigger */}
+          <button
+            id="btn-toggle-simulator"
+            type="button"
+            onClick={() => {
+              setIsSimulatorOpen(prev => !prev);
+              if (isSettingsOpen) setIsSettingsOpen(false);
+            }}
+            title="Open What-If Bunk & Attendance Sandbox"
+            className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl border text-xs font-mono font-medium transition-all shrink-0 cursor-pointer min-h-[38px] ${
+              isSimulatorOpen 
+                ? 'border-black bg-black text-white dark:border-white dark:bg-white dark:text-black shadow-xs' 
+                : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+            }`}
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            <span>Simulator</span>
+          </button>
+
+          {/* Export JSON */}
+          <button
+            id="btn-export-json"
+            type="button"
+            onClick={handleExportJson}
+            title="Download JSON data backup"
+            className="inline-flex items-center justify-center gap-1.5 px-2.5 py-2 sm:py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs font-mono font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-all shrink-0 cursor-pointer min-h-[38px]"
+          >
+            <Download className="w-3.5 h-3.5 text-zinc-500" />
+            <span className="hidden sm:inline">Export</span>
+          </button>
+
+          {/* Import JSON */}
+          <button
+            id="btn-import-json"
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            title="Import attendance JSON backup"
+            className="inline-flex items-center justify-center gap-1.5 px-2.5 py-2 sm:py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs font-mono font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-all shrink-0 cursor-pointer min-h-[38px]"
+          >
+            <Upload className="w-3.5 h-3.5 text-zinc-500" />
+            <span className="hidden sm:inline">Import</span>
+          </button>
+
+          {lastBackup && (
+            <button
+              id="btn-restore-last-data"
+              type="button"
+              onClick={() => handleRestore(lastBackup)}
+              title={`Restore data of last time (${lastBackup.state.totalClasses} total, ${lastBackup.state.absentClasses} absent)`}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs font-mono font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-all shrink-0 cursor-pointer min-h-[38px]"
+            >
+              <History className="w-3.5 h-3.5 text-zinc-500" />
+              <span>Restore</span>
+            </button>
+          )}
+
+          <button
+            id="btn-sample-data"
+            onClick={handleLoadSample}
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs font-mono font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 active:scale-95 transition-all shrink-0 cursor-pointer min-h-[38px]"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-zinc-400" />
+            <span>Sample</span>
+          </button>
+          
+          <button
+            id="btn-reset-data"
+            onClick={handleReset}
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs font-mono font-medium text-zinc-600 dark:text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50/60 dark:hover:bg-red-950/20 active:scale-95 transition-all shrink-0 cursor-pointer min-h-[38px]"
+            title="Reset all inputs to 0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Reset</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Settings Panel (Collapsible) */}
+      {isSettingsOpen && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          className="mb-4 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-900/90 backdrop-blur-sm space-y-3 font-mono text-xs"
+        >
+          <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2">
+            <span className="font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+              <Settings className="w-3.5 h-3.5" />
+              Academic Criteria Configuration
+            </span>
+            <button 
+              type="button" 
+              onClick={() => setIsSettingsOpen(false)}
+              className="text-zinc-400 hover:text-black dark:hover:text-white p-1"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Target Percentage Selector */}
+            <div className="space-y-1.5">
+              <label className="text-zinc-500 uppercase tracking-wider block text-[11px]">
+                Target Attendance Threshold
+              </label>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[65, 70, 75, 80, 85].map(pct => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => handleChange('targetPercentage', pct)}
+                    className={`px-2.5 py-1 rounded-lg text-xs transition-all ${
+                      targetThreshold === pct
+                        ? 'bg-black text-white dark:bg-white dark:text-black font-bold'
+                        : 'bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100'
+                    }`}
                   >
-                     <span className="text-slate-700 dark:text-slate-300 text-base truncate mr-2">
-                        {customHolidaysCount === 0 && state.extraWorkingDays.length === 0 
-                            ? "Configure Holidays" 
-                            : `${customHolidaysCount} Holidays, ${state.extraWorkingDays.length} Working Weekends`}
-                     </span>
-                     <span className="text-cyan-500 bg-cyan-500/10 p-2 rounded-xl group-hover:bg-cyan-500/20 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                     </span>
+                    {pct}%
                   </button>
-               </div>
+                ))}
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={state.targetPercentage || 75}
+                  onChange={(e) => handleChange('targetPercentage', Math.min(100, Math.max(1, parseInt(e.target.value) || 75)))}
+                  className="w-16 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-center text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                  title="Custom target percentage"
+                />
+              </div>
+            </div>
+
+            {/* Daily Classes Selector */}
+            <div className="space-y-1.5">
+              <label className="text-zinc-500 uppercase tracking-wider block text-[11px]">
+                Standard Classes Per Day
+              </label>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[4, 5, 6, 7, 8].map(periods => (
+                  <button
+                    key={periods}
+                    type="button"
+                    onClick={() => handleChange('dailyClasses', periods)}
+                    className={`px-2.5 py-1 rounded-lg text-xs transition-all ${
+                      effectiveDaily === periods
+                        ? 'bg-black text-white dark:bg-white dark:text-black font-bold'
+                        : 'bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100'
+                    }`}
+                  >
+                    {periods} periods
+                  </button>
+                ))}
+                <input
+                  type="number"
+                  min="1"
+                  max="12"
+                  value={state.dailyClasses || 6}
+                  onChange={(e) => handleChange('dailyClasses', Math.max(1, parseInt(e.target.value) || 6))}
+                  className="w-16 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-center text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                  title="Custom classes per day"
+                />
+              </div>
             </div>
           </div>
         </motion.div>
+      )}
 
-        {/* Analytics Section */}
-        <motion.div variants={itemVariants} className="space-y-6 md:space-y-8">
-          <div className="glass-panel p-6 sm:p-10 rounded-3xl relative overflow-hidden flex flex-col items-center justify-center text-center h-full min-h-[400px]">
-            <motion.div 
-              className={`absolute -inset-20 rounded-full opacity-30 transition-colors duration-1000 ${stats?.isSafe ? 'bg-cyan-500' : 'bg-red-500'}`}
-              style={{
-                background: isPerformanceMode 
-                    ? `radial-gradient(circle, ${stats?.isSafe ? 'rgba(6,182,212,0.2)' : 'rgba(239,68,68,0.2)'} 0%, rgba(0,0,0,0) 70%)`
-                    : `radial-gradient(circle, ${stats?.isSafe ? 'rgba(6,182,212,0.4)' : 'rgba(239,68,68,0.4)'} 0%, rgba(0,0,0,0) 70%)`,
-                filter: isPerformanceMode ? 'none' : 'blur(100px)'
-              }}
-              variants={{
-                performance: { scale: 1, rotate: 0 },
-                astral: { scale: [1, 1.15, 1], rotate: [0, 180, 0] }
-              }}
-              animate={isPerformanceMode ? "performance" : "astral"}
-              transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
+      {/* What-If Simulator Sandbox Card (Collapsible) */}
+      {isSimulatorOpen && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          className="mb-4 p-4 sm:p-5 rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900/90 shadow-md space-y-4 font-mono text-xs"
+        >
+          <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></span>
+              <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
+                What-If Bunk & Attendance Sandbox
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {isSimulationActive && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSimBunkDays(0);
+                    setSimAttendDays(0);
+                  }}
+                  className="text-xs text-zinc-500 hover:text-black dark:hover:text-white underline cursor-pointer"
+                >
+                  Reset Sandbox
+                </button>
+              )}
+              <button 
+                type="button" 
+                onClick={() => setIsSimulatorOpen(false)}
+                className="text-zinc-400 hover:text-black dark:hover:text-white p-1"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+            {/* Slider 1: Skip days */}
+            <div className="space-y-1.5 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-zinc-500">Simulate Bunking</span>
+                <span className="font-bold text-red-500">
+                  {simBunkDays} {simBunkDays === 1 ? 'day' : 'days'} ({simBunkDays * effectiveDaily} cls)
+                </span>
+              </div>
+              <input 
+                type="range" 
+                min="0" 
+                max="14" 
+                value={simBunkDays} 
+                onChange={(e) => setSimBunkDays(parseInt(e.target.value) || 0)}
+                className="w-full accent-red-500 cursor-pointer"
+              />
+            </div>
+
+            {/* Slider 2: Attend days */}
+            <div className="space-y-1.5 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-zinc-500">Simulate Attending</span>
+                <span className="font-bold text-emerald-500">
+                  {simAttendDays} {simAttendDays === 1 ? 'day' : 'days'} ({simAttendDays * effectiveDaily} cls)
+                </span>
+              </div>
+              <input 
+                type="range" 
+                min="0" 
+                max="21" 
+                value={simAttendDays} 
+                onChange={(e) => setSimAttendDays(parseInt(e.target.value) || 0)}
+                className="w-full accent-emerald-500 cursor-pointer"
+              />
+            </div>
+
+            {/* Simulation Preview Result */}
+            <div className="p-3 rounded-xl bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 flex flex-col justify-between h-full">
+              <span className="text-[10px] uppercase text-zinc-500 tracking-wider">Simulated Standing</span>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <span className="text-2xl font-extrabold text-zinc-950 dark:text-zinc-50">
+                  {simPercentage.toFixed(1)}%
+                </span>
+                <span className={`text-xs font-bold ${
+                  simDelta > 0 ? 'text-emerald-500' : simDelta < 0 ? 'text-red-500' : 'text-zinc-400'
+                }`}>
+                  {simDelta > 0 ? `+${simDelta.toFixed(1)}%` : simDelta < 0 ? `${simDelta.toFixed(1)}%` : '0.0%'}
+                </span>
+              </div>
+              <span className="text-[11px] text-zinc-500 mt-1">
+                {simPercentage >= targetThreshold 
+                  ? `✓ Stays safe (≥${targetThreshold}%)` 
+                  : `⚠ Drops below ${targetThreshold}% deficit`}
+              </span>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Toast / Notification Banner */}
+      {toast && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          className="mb-4 flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs font-mono"
+        >
+          <div className="flex items-center gap-2 text-zinc-800 dark:text-zinc-200">
+            <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+            <span>{toast.message}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {toast.onAction && (
+              <button
+                type="button"
+                onClick={toast.onAction}
+                className="px-2.5 py-0.5 rounded font-semibold bg-black text-white dark:bg-white dark:text-black hover:opacity-90 transition-opacity"
+              >
+                {toast.actionLabel || 'Restore'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 p-0.5"
+              aria-label="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Quick Prompt if current state is 0 but previous data is available */}
+      {state.totalClasses === 0 && lastBackup && !toast && (
+        <div className="mb-4 p-3 sm:p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 flex items-center justify-between gap-3 text-xs font-mono">
+          <div className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300">
+            <History className="w-4 h-4 text-zinc-400 shrink-0" />
+            <span>Last time data: <strong>{lastBackup.state.totalClasses} classes ({lastBackup.state.totalClasses - lastBackup.state.absentClasses} attended, {lastBackup.state.absentClasses} absent)</strong></span>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleRestore(lastBackup)}
+            className="px-2.5 py-1 rounded-md bg-black text-white dark:bg-white dark:text-black font-semibold text-xs hover:opacity-90 transition-opacity shrink-0"
+          >
+            Restore
+          </button>
+        </div>
+      )}
+
+      {/* Main Grid: Inputs + Gauge */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 mb-6">
+        
+        {/* Left Inputs (7 cols) */}
+        <div className="lg:col-span-7 p-4 sm:p-6 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
+          
+          {/* Total Classes Section with Clarified Quick Actions */}
+          <div className="space-y-1.5" id="total-classes-section">
+            <div className="flex items-center justify-between flex-wrap gap-1.5">
+              <label htmlFor="total-classes-input" className="text-xs font-mono font-medium uppercase tracking-wider text-zinc-500">
+                Total Classes
+              </label>
+              
+              {/* Quick Actions: Attended vs Missed */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  id="btn-log-day-attended"
+                  onClick={() => {
+                    const added = effectiveDaily;
+                    handleChange('totalClasses', (Number(state.totalClasses) || 0) + added);
+                    setToast({ message: `Logged +1 day (${added} classes) attended.` });
+                  }}
+                  className="px-2 py-1 min-h-[30px] text-[11px] font-mono font-medium rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200/80 dark:border-zinc-700 transition-all active:scale-95 cursor-pointer shadow-xs flex items-center gap-1"
+                  title={`Log ${effectiveDaily} attended classes (+1 day)`}
+                >
+                  <Plus className="w-3 h-3 text-emerald-500" />
+                  <span>+1d Attended</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-log-day-missed"
+                  onClick={() => {
+                    const added = effectiveDaily;
+                    setState(prev => {
+                      const newTotal = (Number(prev.totalClasses) || 0) + added;
+                      const newAbsent = (Number(prev.absentClasses) || 0) + added;
+                      return { ...prev, totalClasses: newTotal, absentClasses: newAbsent };
+                    });
+                    setToast({ message: `Logged +1 day (${added} classes) missed/bunked.` });
+                  }}
+                  className="px-2 py-1 min-h-[30px] text-[11px] font-mono font-medium rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200/80 dark:border-zinc-700 transition-all active:scale-95 cursor-pointer shadow-xs flex items-center gap-1"
+                  title={`Log ${effectiveDaily} missed classes (+1 day)`}
+                >
+                  <Minus className="w-3 h-3 text-red-500" />
+                  <span>+1d Missed</span>
+                </button>
+              </div>
+            </div>
+
+            <input
+              id="total-classes-input"
+              type="number"
+              inputMode="numeric"
+              min="0"
+              value={state.totalClasses || ''}
+              onChange={(e) => handleChange('totalClasses', parseInt(e.target.value) || 0)}
+              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus:border-black dark:focus:border-white focus:bg-white dark:focus:bg-zinc-950 rounded-xl px-3.5 py-2.5 font-mono text-base text-zinc-900 dark:text-zinc-100 focus:outline-none transition-colors touch-manipulation"
+              placeholder="0"
+            />
+          </div>
+
+          {/* Absent / Present Input */}
+          <div className="space-y-1.5">
+            <div className="flex justify-between items-center">
+              <label htmlFor="attendance-value-input" className="text-xs font-mono font-medium uppercase tracking-wider text-zinc-500">
+                {inputMode === 'absent' ? 'Absent' : 'Present'}
+              </label>
+              
+              <div className="inline-flex rounded-lg p-0.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs font-mono">
+                <button
+                  id="toggle-mode-absent"
+                  type="button"
+                  onClick={() => setInputMode('absent')}
+                  className={`px-3 py-1 min-h-[30px] rounded-md font-medium transition-all touch-manipulation cursor-pointer ${
+                    inputMode === 'absent'
+                      ? 'bg-black text-white dark:bg-white dark:text-black'
+                      : 'text-zinc-500 hover:text-black dark:hover:text-white'
+                  }`}
+                >
+                  Absent
+                </button>
+                <button
+                  id="toggle-mode-present"
+                  type="button"
+                  onClick={() => setInputMode('present')}
+                  className={`px-3 py-1 min-h-[30px] rounded-md font-medium transition-all touch-manipulation cursor-pointer ${
+                    inputMode === 'present'
+                      ? 'bg-black text-white dark:bg-white dark:text-black'
+                      : 'text-zinc-500 hover:text-black dark:hover:text-white'
+                  }`}
+                >
+                  Present
+                </button>
+              </div>
+            </div>
+
+            <input
+              id="attendance-value-input"
+              type="number"
+              inputMode="numeric"
+              min="0"
+              max={state.totalClasses}
+              value={attendanceInputValue || ''}
+              onChange={(e) => handleAttendanceChange(parseInt(e.target.value) || 0)}
+              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus:border-black dark:focus:border-white focus:bg-white dark:focus:bg-zinc-950 rounded-xl px-3.5 py-2.5 font-mono text-base text-zinc-900 dark:text-zinc-100 focus:outline-none transition-colors touch-manipulation"
+              placeholder="0"
             />
 
-            <h3 className="text-slate-500 dark:text-slate-400 font-bold mb-6 uppercase tracking-[0.2em] text-xs md:text-sm z-10 opacity-70">Current Status</h3>
-            <div className="relative z-10 mb-6">
-                <svg className="w-56 h-56 sm:w-64 sm:h-64 md:w-72 md:h-72 transform -rotate-90" viewBox="0 0 256 256">
-                    <defs>
-                      <filter id="glow-cyan" x="-50%" y="-50%" width="200%" height="200%">
-                        <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#22d3ee" />
-                      </filter>
-                      <filter id="glow-red" x="-50%" y="-50%" width="200%" height="200%">
-                        <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#f87171" />
-                      </filter>
-                    </defs>
-                    <circle cx="128" cy="128" r="115" stroke="currentColor" className="text-slate-200 dark:text-slate-900" strokeWidth="18" fill="transparent" />
-                    <motion.circle 
-                        cx="128" cy="128" r="115" 
-                        stroke={stats?.isSafe ? "#22d3ee" : "#f87171"} 
-                        strokeWidth="18" 
-                        fill="transparent"
-                        strokeDasharray={2 * Math.PI * 115}
-                        strokeLinecap="round"
-                        initial={{ strokeDashoffset: 2 * Math.PI * 115 }}
-                        animate={{ strokeDashoffset: 2 * Math.PI * 115 * (1 - (stats?.currentPercentage || 0) / 100) }}
-                        transition={{ duration: 2, type: "spring", stiffness: 40, damping: 15 }}
-                        style={{ filter: `url(#glow-${stats?.isSafe ? 'cyan' : 'red'})` }}
-                    />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-6xl sm:text-7xl md:text-8xl font-black text-slate-900 dark:text-white tracking-tighter tabular-nums drop-shadow-2xl">
-                        <AnimatedCounter value={stats?.currentPercentage || 0} toFixed={1} isPerformanceMode={isPerformanceMode} />%
-                    </span>
-
-                    <AnimatePresence mode="wait">
-                      <motion.span
-                        key={stats?.isSafe ? 'safe' : 'danger'}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className={`mt-4 px-6 py-1.5 rounded-full text-xs font-black uppercase tracking-widest ${stats?.isSafe ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' : 'bg-red-500/20 text-red-300 border-red-500/30'} border`}
-                      >
-                          {stats?.isSafe ? 'Safe' : 'Danger'}
-                      </motion.span>
-                    </AnimatePresence>
-                </div>
-            </div>
-
-            <div className="relative z-10 flex gap-8 text-sm font-bold">
-                <div className="flex flex-col items-center">
-                    <span className="text-cyan-600 dark:text-cyan-400 text-lg tabular-nums font-black"><AnimatedCounter value={attendedCount} isPerformanceMode={isPerformanceMode} /></span>
-                    <span className="text-[10px] text-slate-500 uppercase tracking-widest">Attended</span>
-                </div>
-                <div className="w-px h-10 bg-slate-200 dark:bg-slate-800" />
-                <div className="flex flex-col items-center">
-                    <span className="text-red-600 dark:text-red-400 text-lg tabular-nums font-black"><AnimatedCounter value={state.absentClasses} isPerformanceMode={isPerformanceMode} /></span>
-                    <span className="text-[10px] text-slate-500 uppercase tracking-widest">Missed</span>
-                </div>
+            <div className="flex justify-between text-[11px] font-mono text-zinc-400 px-1 pt-0.5">
+              <span>Attended: {attendedCount}</span>
+              <span>Missed: {state.absentClasses}</span>
             </div>
           </div>
-        </motion.div>
 
-        {/* Stats Grid */}
-        <motion.div variants={itemVariants} className="col-span-1 lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="glass-panel p-8 rounded-3xl relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <svg className="w-12 h-12 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1a1 1 0 112 0v1a1 1 0 11-2 0zM13.536 14.95a1 1 0 011.414 0l.707.707a1 1 0 11-1.414 1.414l-.707-.707a1 1 0 010-1.414zM16.122 17.536L16.121 17.535l-.001-.001a1 1 0 111.414-1.414l.001.001.001.001a1 1 0 11-1.414 1.414zM4.929 16.364l.707.707a1 1 0 01-1.414 1.414l-.707-.707a1 1 0 011.414-1.414z" /></svg>
-                </div>
-                <h4 className="text-slate-500 text-xs font-black uppercase tracking-[0.2em] mb-4">Bunk Potential</h4>
-                {stats?.hasExamDate ? (
-                  <>
-                    <div className="flex items-baseline gap-2">
-                        <span className="text-5xl font-black text-slate-900 dark:text-white tabular-nums"><AnimatedCounter value={stats?.bunkableClasses || 0} isPerformanceMode={isPerformanceMode} /></span>
-                        <span className="text-sm text-slate-500 font-bold">classes</span>
-                    </div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-4 leading-relaxed font-medium">
-                        You can skip <span className="text-cyan-600 dark:text-cyan-400 font-black"><AnimatedCounter value={stats?.bunkableDays || 0} isPerformanceMode={isPerformanceMode} /> full days</span> safely.
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-sm text-slate-600 italic font-medium">Enter exam date to calculate bunkability.</p>
-                )}
+          {/* Exam Date */}
+          <div className="space-y-1.5 pt-2 border-t border-zinc-100 dark:border-zinc-900">
+            <div className="flex justify-between items-baseline">
+              <label htmlFor="exam-date-input" className="text-xs font-mono font-medium uppercase tracking-wider text-zinc-500">
+                Exam Date
+              </label>
+              {stats?.hasExamDate && (
+                <span className="text-[11px] font-mono text-zinc-400">
+                  {stats.classesUntilExam} classes remain
+                </span>
+              )}
             </div>
 
-            <div className="glass-panel p-8 rounded-3xl relative overflow-hidden group">
-                <h4 className="text-slate-500 text-xs font-black uppercase tracking-[0.2em] mb-4">
-                  {stats?.hasExamDate ? (stats?.isPossibleToReachTarget ? 'Requirement' : 'Terminal Alert') : 'Immediate Requirement'}
-                </h4>
-                {(!stats?.hasExamDate || stats?.isPossibleToReachTarget) ? (
-                  <>
-                    <div className="flex items-baseline gap-2">
-                        <span className="text-5xl font-black text-slate-900 dark:text-white tabular-nums"><AnimatedCounter value={stats?.requiredClasses || 0} isPerformanceMode={isPerformanceMode} /></span>
-                        <span className="text-sm text-slate-500 font-bold">classes</span>
-                    </div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-4 leading-relaxed font-medium">
-                        Must attend <span className="text-purple-600 dark:text-purple-400 font-black"><AnimatedCounter value={stats?.requiredDays || 0} isPerformanceMode={isPerformanceMode} /> full days</span> to hit 75%.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-baseline gap-2">
-                        <span className="text-5xl font-black text-red-500 tabular-nums"><AnimatedCounter value={stats?.maxAchievablePercentage || 0} toFixed={1} isPerformanceMode={isPerformanceMode} />%</span>
-                    </div>
-                    <p className="text-sm text-red-500/70 dark:text-red-400/70 mt-4 leading-relaxed font-bold uppercase tracking-tighter">
-                        75% is unreachable before the exam period.
-                    </p>
-                  </>
-                )}
+            <input
+              id="exam-date-input"
+              type="date"
+              value={state.examDate}
+              onChange={(e) => handleChange('examDate', e.target.value)}
+              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus:border-black dark:focus:border-white focus:bg-white dark:focus:bg-zinc-950 rounded-xl px-3.5 py-2.5 font-mono text-base sm:text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none transition-colors dark:[color-scheme:dark] touch-manipulation"
+            />
+          </div>
+
+          {/* Holidays Button */}
+          <div className="pt-1">
+            <button
+              id="btn-open-calendar-modal"
+              type="button"
+              onClick={() => setIsHolidayModalOpen(true)}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 hover:bg-zinc-100 dark:hover:bg-zinc-900 active:scale-[0.99] transition-all text-xs font-mono min-h-[44px] touch-manipulation cursor-pointer"
+            >
+              <span className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300">
+                <CalendarIcon className="w-3.5 h-3.5 text-zinc-400" />
+                Holidays & Schedule
+              </span>
+              <span className="text-zinc-400">
+                {holidaysCount > 0 ? `${holidaysCount} set` : 'None set'} →
+              </span>
+            </button>
+          </div>
+
+        </div>
+
+        {/* Right Gauge (5 cols) */}
+        <div className="lg:col-span-5 p-5 sm:p-6 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col justify-between items-center text-center">
+          
+          <div className="w-full flex items-center justify-between text-xs font-mono uppercase tracking-wider text-zinc-400">
+            <span>Standing</span>
+            <span>{targetThreshold}% Target</span>
+          </div>
+
+          {/* Circular Gauge */}
+          <div className="relative my-3 sm:my-4 flex items-center justify-center">
+            <svg 
+              className="w-40 h-40 sm:w-48 sm:h-48 transform -rotate-90" 
+              viewBox="0 0 240 240"
+              role="progressbar"
+              aria-valuenow={Math.round(percentage)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Attendance percentage"
+            >
+              <circle 
+                cx="120" 
+                cy="120" 
+                r="100" 
+                stroke="currentColor" 
+                className="text-zinc-100 dark:text-zinc-900" 
+                strokeWidth="14" 
+                fill="transparent" 
+              />
+              {/* Secondary Ghost Circle for What-If Simulation */}
+              {isSimulationActive && (
+                <circle 
+                  cx="120" 
+                  cy="120" 
+                  r="100" 
+                  stroke="currentColor" 
+                  className="text-cyan-500/40" 
+                  strokeWidth="14" 
+                  fill="transparent"
+                  strokeDasharray={2 * Math.PI * 100}
+                  strokeDashoffset={2 * Math.PI * 100 * (1 - Math.min(100, simPercentage) / 100)}
+                  strokeLinecap="round"
+                />
+              )}
+              {/* Main Progress Circle */}
+              <motion.circle 
+                cx="120" 
+                cy="120" 
+                r="100" 
+                stroke="currentColor" 
+                className={isSafe ? "text-black dark:text-white" : "text-zinc-500 dark:text-zinc-400"}
+                strokeWidth="14" 
+                fill="transparent"
+                strokeDasharray={2 * Math.PI * 100}
+                strokeLinecap="round"
+                initial={{ strokeDashoffset: 2 * Math.PI * 100 }}
+                animate={{ 
+                  strokeDashoffset: 2 * Math.PI * 100 * (1 - Math.min(100, percentage) / 100) 
+                }}
+                transition={{ duration: 0.8, ease: "easeOut" }}
+              />
+              {/* Dynamic Target Tick Indicator */}
+              <circle 
+                cx="120" 
+                cy="120" 
+                r="100" 
+                stroke="currentColor" 
+                className="text-zinc-400 dark:text-zinc-600" 
+                strokeWidth="16" 
+                fill="transparent" 
+                strokeDasharray="2 3000" 
+                strokeDashoffset={2 * Math.PI * 100 * (1 - targetThreshold / 100)}
+              />
+            </svg>
+
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <div className="text-4xl sm:text-5xl font-extrabold tracking-tighter text-black dark:text-white font-mono">
+                <AnimatedCounter value={percentage} toFixed={1} />
+                <span className="text-xl sm:text-2xl font-normal text-zinc-400">%</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 3-Tier Status & Margin */}
+          <div className="w-full space-y-3">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-medium border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
+              {percentage >= targetThreshold + 5 ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-black dark:text-white" />
+                  <span className="text-zinc-900 dark:text-zinc-100">Comfortable (≥{targetThreshold}%)</span>
+                </>
+              ) : percentage >= targetThreshold ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-black dark:text-white" />
+                  <span className="text-zinc-900 dark:text-zinc-100">Borderline (≥{targetThreshold}%)</span>
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5 text-zinc-500" />
+                  <span className="text-zinc-700 dark:text-zinc-300">Deficit (&lt;{targetThreshold}%)</span>
+                </>
+              )}
             </div>
 
-            <div className="glass-panel p-8 rounded-3xl relative overflow-hidden group sm:col-span-2 lg:col-span-1">
-                <h4 className="text-slate-500 text-xs font-black uppercase tracking-[0.2em] mb-4">Tomorrow Risk</h4>
-                <div className="flex items-baseline gap-2">
-                    <span className={`text-5xl font-black tabular-nums ${(stats?.tomorrowImpact || 0) < 75 ? 'text-red-600 dark:text-red-500' : 'text-orange-600 dark:text-orange-400'}`}>
-                        <AnimatedCounter value={stats?.tomorrowImpact || 0} toFixed={1} isPerformanceMode={isPerformanceMode} />%
-                    </span>
-                </div>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mt-4 leading-relaxed font-medium">
-                    Projected drop if you miss all classes tomorrow.
-                </p>
-            </div>
-        </motion.div>
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-900 w-full text-left font-mono">
+              <div className="p-2 rounded-lg bg-zinc-50 dark:bg-zinc-900/50">
+                <span className="text-[10px] uppercase text-zinc-400 block">Attended</span>
+                <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                  {attendedCount}/{state.totalClasses}
+                </span>
+              </div>
 
-        {/* Projection Chart Section */}
-        <motion.div variants={itemVariants} className="col-span-1 lg:col-span-2">
-            <div className="glass-panel p-6 sm:p-10 rounded-3xl relative overflow-hidden">
-                <h3 className="text-slate-500 dark:text-slate-400 font-bold mb-10 uppercase tracking-[0.2em] text-xs md:text-sm text-center">7-Day Trajectory Forecast</h3>
-                <div className="h-[250px] sm:h-[350px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={projectionData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                            <defs>
-                                <linearGradient id="colorCyan" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.2}/>
-                                    <stop offset="95%" stopColor="#22d3ee" stopOpacity={0}/>
-                                </linearGradient>
-                                <linearGradient id="colorRed" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#f87171" stopOpacity={0.2}/>
-                                    <stop offset="95%" stopColor="#f87171" stopOpacity={0}/>
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="1 5" stroke={isDarkMode ? "#1e293b" : "#e2e8f0"} vertical={false} />
-                            <XAxis dataKey="name" stroke={isDarkMode ? "#475569" : "#94a3b8"} fontSize={11} tickLine={false} axisLine={false} tickMargin={10} />
-                            <YAxis stroke={isDarkMode ? "#475569" : "#94a3b8"} fontSize={11} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(value) => `${value}%`} />
-                            <Tooltip 
-                                contentStyle={{ 
-                                    backgroundColor: isDarkMode ? '#020617' : '#ffffff', 
-                                    borderColor: isDarkMode ? '#1e293b' : '#e2e8f0', 
-                                    borderRadius: '16px', 
-                                    color: isDarkMode ? '#f8fafc' : '#0f172a', 
-                                    fontSize: '12px' 
-                                }} 
-                                cursor={{ stroke: isDarkMode ? '#334155' : '#cbd5e1' }} 
-                            />
-                            <ReferenceLine y={75} stroke={isDarkMode ? "#334155" : "#cbd5e1"} strokeDasharray="3 3" />
-                            <Area type="monotone" dataKey="attendAll" name="Perfect Attendance" stroke="#22d3ee" fillOpacity={1} fill="url(#colorCyan)" strokeWidth={3} isAnimationActive={!isPerformanceMode} />
-                            <Area type="monotone" dataKey="bunkAll" name="Full Bunk" stroke="#f87171" fillOpacity={1} fill="url(#colorRed)" strokeWidth={3} isAnimationActive={!isPerformanceMode} />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </div>
+              <div className="p-2 rounded-lg bg-zinc-50 dark:bg-zinc-900/50">
+                <span className="text-[10px] uppercase text-zinc-400 block">Margin</span>
+                <span className="text-sm font-bold inline-flex items-center gap-0.5 text-zinc-900 dark:text-zinc-100">
+                  {marginFromThreshold >= 0 ? (
+                    <>
+                      <ArrowUpRight className="w-3 h-3 text-black dark:text-white" />
+                      +{marginFromThreshold.toFixed(1)}%
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDownRight className="w-3 h-3 text-zinc-500" />
+                      {marginFromThreshold.toFixed(1)}%
+                    </>
+                  )}
+                </span>
+              </div>
             </div>
-        </motion.div>
-      </motion.div>
 
-      <Modal isOpen={isHolidayModalOpen} onClose={() => setIsHolidayModalOpen(false)} title="Attendance Calendar">
-        <Calendar holidays={state.holidays} extraWorkingDays={state.extraWorkingDays} onDateToggle={toggleHoliday} />
-      </Modal>
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* 3 Metric Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        
+        {/* Card 1: Bunk Allowance */}
+        <div className="p-5 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 block">
+              Bunk Allowance
+            </span>
+            {stats?.hasExamDate && (
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-medium">
+                Until Exam
+              </span>
+            )}
+          </div>
+          <div className="flex items-baseline gap-1.5 mb-1 font-mono">
+            <span className="text-3xl font-extrabold text-zinc-950 dark:text-zinc-50">
+              <AnimatedCounter value={stats?.bunkableClasses || 0} />
+            </span>
+            <span className="text-xs text-zinc-400">
+              {(stats?.bunkableClasses || 0) === 1 ? 'class' : 'classes'}
+            </span>
+          </div>
+          <span className="text-xs text-zinc-500 font-mono">
+            {(() => {
+              const bunkClasses = stats?.bunkableClasses || 0;
+              const bunkDays = stats?.bunkableDays || 0;
+              if (bunkClasses === 0) return 'Zero buffer (attend next)';
+              if (bunkDays >= 1) return `≈ ${bunkDays} ${bunkDays === 1 ? 'day' : 'days'} safe buffer`;
+              return `< 1 full day (${bunkClasses} ${bunkClasses === 1 ? 'period' : 'periods'} buffer)`;
+            })()}
+          </span>
+        </div>
+
+        {/* Card 2: Needed to Recover / Reach Target */}
+        <div className="p-5 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 block">
+              Needed For {targetThreshold}%
+            </span>
+            {stats?.hasExamDate && (
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-medium ${
+                stats?.isPossibleToReachTarget === false 
+                  ? 'bg-red-500/10 text-red-500 border border-red-500/20' 
+                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
+              }`}>
+                {stats?.isPossibleToReachTarget === false ? 'Unreachable' : 'Until Exam'}
+              </span>
+            )}
+          </div>
+          <div className="flex items-baseline gap-1.5 mb-1 font-mono">
+            <span className="text-3xl font-extrabold text-zinc-950 dark:text-zinc-50">
+              <AnimatedCounter value={stats?.requiredClasses || 0} />
+            </span>
+            <span className="text-xs text-zinc-400">
+              {(stats?.requiredClasses || 0) === 1 ? 'class' : 'classes'}
+            </span>
+          </div>
+          <span className="text-xs text-zinc-500 font-mono">
+            {(() => {
+              const req = stats?.requiredClasses || 0;
+              const reqDays = stats?.requiredDays || 0;
+              if (stats?.hasExamDate) {
+                if (stats?.isPossibleToReachTarget === false) {
+                  return `Max achievable: ${(stats?.maxAchievablePercentage || 0).toFixed(1)}%`;
+                }
+                if (req === 0) {
+                  return 'Target secured for exam';
+                }
+                if (isSafe) {
+                  return 'Must attend before exam';
+                }
+                return `≈ ${reqDays} ${reqDays === 1 ? 'day' : 'days'} needed before exam`;
+              }
+              if (isSafe && req === 0) {
+                return `Target secured (≥${targetThreshold}%)`;
+              }
+              return `≈ ${reqDays} ${reqDays === 1 ? 'consecutive day' : 'consecutive days'}`;
+            })()}
+          </span>
+        </div>
+
+        {/* Card 3: Smart Next Class / Tomorrow Risk */}
+        <div className="p-5 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 block">
+              {stats?.nextClassDateLabel} Risk
+            </span>
+            {stats?.isTomorrowOff && (
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 font-medium">
+                Tomorrow Off
+              </span>
+            )}
+          </div>
+          <div className="flex items-baseline gap-1.5 mb-1 font-mono">
+            <span className="text-3xl font-extrabold text-zinc-950 dark:text-zinc-50">
+              <AnimatedCounter value={stats?.nextClassImpact || 0} toFixed={1} />
+            </span>
+            <span className="text-xs text-zinc-400">%</span>
+          </div>
+          <span className="text-xs text-zinc-500 font-mono">
+            -{stats?.nextClassDrop.toFixed(1)}% if {stats?.dailyClasses} skipped on {stats?.nextClassDateLabel}
+          </span>
+        </div>
+
+      </div>
+
+      {/* 7-Day Trajectory Chart */}
+      <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 mb-4">
+          <h2 className="text-sm font-bold tracking-tight text-zinc-900 dark:text-zinc-100 font-mono">
+            7-Day Forecast
+          </h2>
+
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 text-xs font-mono text-zinc-500">
+            <div className="flex items-center gap-1">
+              <span className="w-2.5 h-0.5 bg-black dark:bg-white"></span>
+              <span>Attend</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="w-2.5 h-0.5 border-t border-dashed border-zinc-400"></span>
+              <span>Bunk</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="w-2.5 h-0.5 border-t border-dotted border-zinc-300 dark:border-zinc-600"></span>
+              <span>{targetThreshold}%</span>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-zinc-400">
+              <span>* Off-day</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="h-[220px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={projectionData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+              <defs>
+                <linearGradient id="monoAttend" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={isDarkMode ? "#ffffff" : "#000000"} stopOpacity={0.08} />
+                  <stop offset="95%" stopColor={isDarkMode ? "#ffffff" : "#000000"} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid 
+                strokeDasharray="2 4" 
+                stroke={isDarkMode ? "#27272a" : "#f4f4f5"} 
+                vertical={false} 
+              />
+              <XAxis 
+                dataKey="name" 
+                stroke={isDarkMode ? "#71717a" : "#a1a1aa"} 
+                fontSize={11} 
+                tickLine={false} 
+                axisLine={false} 
+                tickMargin={8} 
+                fontFamily="JetBrains Mono, monospace"
+              />
+              <YAxis 
+                stroke={isDarkMode ? "#71717a" : "#a1a1aa"} 
+                fontSize={11} 
+                tickLine={false} 
+                axisLine={false} 
+                domain={[0, 100]} 
+                tickFormatter={(value) => `${value}%`} 
+                fontFamily="JetBrains Mono, monospace"
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: isDarkMode ? '#09090b' : '#ffffff', 
+                  borderColor: isDarkMode ? '#27272a' : '#e4e4e7', 
+                  borderRadius: '8px', 
+                  color: isDarkMode ? '#fafafa' : '#09090b', 
+                  fontSize: '11px',
+                  fontFamily: 'JetBrains Mono, monospace'
+                }} 
+                cursor={{ stroke: isDarkMode ? '#3f3f46' : '#d4d4d8', strokeWidth: 1 }} 
+              />
+              <ReferenceLine 
+                y={targetThreshold} 
+                stroke={isDarkMode ? "#52525b" : "#a1a1aa"} 
+                strokeDasharray="3 3" 
+              />
+              <Area 
+                type="monotone" 
+                dataKey="attendAll" 
+                name="Attend" 
+                stroke={isDarkMode ? "#ffffff" : "#000000"} 
+                fillOpacity={1} 
+                fill="url(#monoAttend)" 
+                strokeWidth={2} 
+              />
+              <Area 
+                type="monotone" 
+                dataKey="bunkAll" 
+                name="Bunk" 
+                stroke={isDarkMode ? "#71717a" : "#a1a1aa"} 
+                strokeDasharray="4 4"
+                fill="transparent" 
+                strokeWidth={1.5} 
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+
+      {/* Calendar Modal */}
+      {isHolidayModalOpen && (
+        <Modal 
+          isOpen={isHolidayModalOpen} 
+          onClose={() => setIsHolidayModalOpen(false)} 
+          title="Calendar & Holidays"
+        >
+          <Suspense fallback={<div className="h-64 flex items-center justify-center font-mono text-xs text-zinc-400">Loading schedule...</div>}>
+            <Calendar 
+              holidays={state.holidays} 
+              extraWorkingDays={state.extraWorkingDays} 
+              onDateToggle={toggleHoliday} 
+            />
+          </Suspense>
+        </Modal>
+      )}
     </div>
   );
 };
