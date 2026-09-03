@@ -32,7 +32,8 @@ const App: React.FC = () => {
         console.error(e);
       }
     }
-    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    // Default theme is white (light mode)
+    return false;
   });
 
   useEffect(() => {
@@ -51,16 +52,16 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen relative flex flex-col bg-white dark:bg-[#09090b] text-zinc-950 dark:text-zinc-50 transition-colors duration-200 selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black">
+    <div className="min-h-screen relative flex flex-col bg-[#fafafa] dark:bg-[#09090b] text-zinc-950 dark:text-zinc-50 transition-colors duration-200 selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black">
       <Background isDarkMode={isDarkMode} />
       
       {/* Architectural Minimal Header */}
-      <header className="sticky top-0 z-40 w-full border-b border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-[#09090b]/90 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+      <header className="sticky top-0 z-40 w-full border-b border-zinc-200/80 dark:border-zinc-800/80 bg-white/85 dark:bg-[#09090b]/85 backdrop-blur-md pt-[env(safe-area-inset-top)] shadow-xs">
         <div className="max-w-6xl mx-auto px-3.5 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between">
           
           {/* Brand Logo & Name */}
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-black dark:bg-white text-white dark:text-black flex items-center justify-center font-bold shadow-xs">
+            <div className="w-7 h-7 rounded-lg bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 flex items-center justify-center font-bold shadow-xs">
               <GraduationCap className="w-4 h-4" />
             </div>
             <div className="flex items-baseline gap-1.5">
@@ -79,14 +80,14 @@ const App: React.FC = () => {
             <button 
               id="theme-toggle-btn"
               onClick={toggleTheme}
-              className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors cursor-pointer"
-              title={isDarkMode ? "Light Mode" : "Dark Mode"}
-              aria-label={isDarkMode ? "Light Mode" : "Dark Mode"}
+              className="p-2 rounded-lg border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 shadow-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center min-w-[36px] min-h-[36px]"
+              title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              aria-label={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
               {isDarkMode ? (
-                <Sun className="w-4 h-4" />
+                <Sun className="w-4 h-4 text-amber-400 hover:text-amber-300 transition-transform rotate-0" />
               ) : (
-                <Moon className="w-4 h-4" />
+                <Moon className="w-4 h-4 text-zinc-700 hover:text-zinc-950 transition-transform -rotate-12" />
               )}
             </button>
 
@@ -96,7 +97,7 @@ const App: React.FC = () => {
               href="https://github.com/sachin-godara/Astral-Attendance"
               target="_blank"
               rel="noopener noreferrer"
-              className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors cursor-pointer"
+              className="p-2 rounded-lg border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 shadow-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center min-w-[36px] min-h-[36px]"
               title="View on GitHub"
               aria-label="View on GitHub"
             >

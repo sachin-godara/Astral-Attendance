@@ -74,7 +74,7 @@ interface DashboardProps {
   isDarkMode?: boolean;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = false }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
@@ -1029,10 +1029,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
                     handleChange('totalClasses', (Number(state.totalClasses) || 0) + added);
                     setToast({ message: `Logged +1 day (${added} classes) attended.` });
                   }}
-                  className="px-2 py-1 min-h-[32px] sm:min-h-[30px] text-[11px] font-mono font-medium rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200/80 dark:border-zinc-700 transition-all active:scale-95 cursor-pointer shadow-xs flex items-center gap-1 touch-manipulation"
+                  className="px-2 py-1 min-h-[32px] sm:min-h-[30px] text-[11px] font-mono font-medium rounded-lg bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200/90 dark:border-emerald-800/60 transition-all active:scale-95 cursor-pointer shadow-xs flex items-center gap-1 touch-manipulation"
                   title={`Log ${effectiveDaily} attended classes (+1 day)`}
                 >
-                  <Plus className="w-3 h-3 text-emerald-500 shrink-0" />
+                  <Plus className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span>1d Attended</span>
                 </button>
                 <button
@@ -1047,10 +1047,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
                     });
                     setToast({ message: `Logged +1 day (${added} classes) missed/bunked.` });
                   }}
-                  className="px-2 py-1 min-h-[32px] sm:min-h-[30px] text-[11px] font-mono font-medium rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200/80 dark:border-zinc-700 transition-all active:scale-95 cursor-pointer shadow-xs flex items-center gap-1 touch-manipulation"
+                  className="px-2 py-1 min-h-[32px] sm:min-h-[30px] text-[11px] font-mono font-medium rounded-lg bg-rose-50 hover:bg-rose-100/80 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-800 dark:text-rose-300 border border-rose-200/90 dark:border-rose-800/60 transition-all active:scale-95 cursor-pointer shadow-xs flex items-center gap-1 touch-manipulation"
                   title={`Log ${effectiveDaily} missed classes (+1 day)`}
                 >
-                  <Minus className="w-3 h-3 text-red-500 shrink-0" />
+                  <Minus className="w-3 h-3 text-rose-600 dark:text-rose-400 shrink-0" />
                   <span>1d Missed</span>
                 </button>
               </div>
@@ -1229,7 +1229,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
                 cy="120" 
                 r="100" 
                 stroke="currentColor" 
-                className="text-zinc-100 dark:text-zinc-900" 
+                className="text-zinc-200/80 dark:text-zinc-800/80" 
                 strokeWidth="14" 
                 fill="transparent" 
               />
@@ -1254,7 +1254,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
                 cy="120" 
                 r="100" 
                 stroke="currentColor" 
-                className={isSafe ? "text-black dark:text-white" : "text-zinc-500 dark:text-zinc-400"}
+                className={isSafe ? "text-zinc-950 dark:text-zinc-50" : "text-zinc-500 dark:text-zinc-400"}
                 strokeWidth="14" 
                 fill="transparent"
                 strokeDasharray={2 * Math.PI * 100}
@@ -1289,21 +1289,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
 
           {/* 3-Tier Status & Margin */}
           <div className="w-full space-y-3">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-medium border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-medium border shadow-xs transition-colors ${
+              percentage >= targetThreshold + 5 
+                ? 'border-emerald-200/90 dark:border-emerald-800/60 bg-emerald-50/90 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300'
+                : percentage >= targetThreshold
+                ? 'border-amber-200/90 dark:border-amber-800/60 bg-amber-50/90 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300'
+                : 'border-rose-200/90 dark:border-rose-800/60 bg-rose-50/90 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300'
+            }`}>
               {percentage >= targetThreshold + 5 ? (
                 <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-black dark:text-white" />
-                  <span className="text-zinc-900 dark:text-zinc-100">Comfortable (≥{targetThreshold}%)</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>Comfortable (≥{targetThreshold}%)</span>
                 </>
               ) : percentage >= targetThreshold ? (
                 <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-black dark:text-white" />
-                  <span className="text-zinc-900 dark:text-zinc-100">Borderline (≥{targetThreshold}%)</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>Borderline (≥{targetThreshold}%)</span>
                 </>
               ) : (
                 <>
-                  <AlertTriangle className="w-3.5 h-3.5 text-zinc-500" />
-                  <span className="text-zinc-700 dark:text-zinc-300">Deficit (&lt;{targetThreshold}%)</span>
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                  <span>Deficit (&lt;{targetThreshold}%)</span>
                 </>
               )}
             </div>
@@ -1318,15 +1324,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
 
               <div className="p-2 rounded-lg bg-zinc-50 dark:bg-zinc-900/50">
                 <span className="text-[10px] uppercase text-zinc-400 block">Margin</span>
-                <span className="text-sm font-bold inline-flex items-center gap-0.5 text-zinc-900 dark:text-zinc-100">
+                <span className={`text-sm font-bold inline-flex items-center gap-0.5 ${
+                  marginFromThreshold >= 0 
+                    ? 'text-emerald-600 dark:text-emerald-400' 
+                    : 'text-rose-600 dark:text-rose-400'
+                }`}>
                   {marginFromThreshold >= 0 ? (
                     <>
-                      <ArrowUpRight className="w-3 h-3 text-black dark:text-white" />
+                      <ArrowUpRight className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                       +{marginFromThreshold.toFixed(1)}%
                     </>
                   ) : (
                     <>
-                      <ArrowDownRight className="w-3 h-3 text-zinc-500" />
+                      <ArrowDownRight className="w-3 h-3 text-rose-600 dark:text-rose-400" />
                       {marginFromThreshold.toFixed(1)}%
                     </>
                   )}
@@ -1531,14 +1541,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
               />
               <Tooltip 
                 contentStyle={{ 
-                  backgroundColor: isDarkMode ? '#09090b' : '#ffffff', 
+                  backgroundColor: isDarkMode ? '#18181b' : '#ffffff', 
                   borderColor: isDarkMode ? '#27272a' : '#e4e4e7', 
-                  borderRadius: '8px', 
+                  borderRadius: '10px', 
+                  boxShadow: isDarkMode ? '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)' : '0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04)',
                   color: isDarkMode ? '#fafafa' : '#09090b', 
                   fontSize: '11px',
-                  fontFamily: 'JetBrains Mono, monospace'
+                  fontFamily: 'JetBrains Mono, monospace',
+                  padding: '8px 12px'
                 }} 
-                cursor={{ stroke: isDarkMode ? '#3f3f46' : '#d4d4d8', strokeWidth: 1 }} 
+                cursor={{ stroke: isDarkMode ? '#3f3f46' : '#d4d4d8', strokeWidth: 1, strokeDasharray: '3 3' }} 
               />
               <ReferenceLine 
                 y={targetThreshold} 

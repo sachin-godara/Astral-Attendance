@@ -4,7 +4,7 @@
 
 :root {
   --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
-  --bg-color: #ffffff;
+  --bg-color: #fafafa;
   --text-color: #09090b;
   --card-bg: #ffffff;
   --card-border: #e4e4e7;
