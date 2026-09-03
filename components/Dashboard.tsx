@@ -77,8 +77,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
-  const [simBunkDays, setSimBunkDays] = useState(0);
-  const [simAttendDays, setSimAttendDays] = useState(0);
+  const [simUnit, setSimUnit] = useState<'days' | 'classes'>('days');
+  const [simBunkValue, setSimBunkValue] = useState(0);
+  const [simAttendValue, setSimAttendValue] = useState(0);
 
   const [state, setState] = useState<AttendanceState>(() => {
     const saved = localStorage.getItem('attendanceState');
@@ -423,11 +424,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
 
   // Simulator Calculations
   const effectiveDaily = state.dailyClasses ?? 6;
-  const simTotal = state.totalClasses + (simBunkDays + simAttendDays) * effectiveDaily;
-  const simAttended = attendedCount + simAttendDays * effectiveDaily;
+  const simBunkClasses = simUnit === 'days' ? simBunkValue * effectiveDaily : simBunkValue;
+  const simAttendClasses = simUnit === 'days' ? simAttendValue * effectiveDaily : simAttendValue;
+  const simTotal = state.totalClasses + simBunkClasses + simAttendClasses;
+  const simAttended = attendedCount + simAttendClasses;
   const simPercentage = simTotal === 0 ? 0 : (simAttended / simTotal) * 100;
   const simDelta = simPercentage - percentage;
-  const isSimulationActive = simBunkDays > 0 || simAttendDays > 0;
+  const isSimulationActive = simBunkClasses > 0 || simAttendClasses > 0;
+
+  const handleSimUnitChange = (newUnit: 'days' | 'classes') => {
+    if (newUnit === simUnit) return;
+    if (newUnit === 'classes') {
+      setSimBunkValue(prev => prev * effectiveDaily);
+      setSimAttendValue(prev => prev * effectiveDaily);
+    } else {
+      setSimBunkValue(prev => Math.round(prev / effectiveDaily));
+      setSimAttendValue(prev => Math.round(prev / effectiveDaily));
+    }
+    setSimUnit(newUnit);
+  };
 
 
   return (
@@ -655,91 +670,235 @@ export const Dashboard: React.FC<DashboardProps> = ({ isDarkMode = true }) => {
           exit={{ opacity: 0, y: -8 }}
           className="mb-4 p-4 sm:p-5 rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900/90 shadow-md space-y-4 font-mono text-xs"
         >
-          <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2">
+          {/* Header & Mode Switcher */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-zinc-200 dark:border-zinc-800 pb-3">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></span>
               <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
-                What-If Bunk & Attendance Sandbox
+                What-If Sandbox
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            
+            <div className="flex items-center justify-between sm:justify-end gap-2.5">
+              {/* Unit Toggle: Days vs Classes */}
+              <div className="inline-flex items-center p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-950 text-[11px] font-mono">
+                <button
+                  type="button"
+                  onClick={() => handleSimUnitChange('days')}
+                  className={`px-2.5 py-0.5 rounded-md transition-all cursor-pointer ${
+                    simUnit === 'days'
+                      ? 'bg-white dark:bg-zinc-800 text-zinc-950 dark:text-zinc-50 font-bold shadow-xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                  }`}
+                >
+                  By Days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSimUnitChange('classes')}
+                  className={`px-2.5 py-0.5 rounded-md transition-all cursor-pointer ${
+                    simUnit === 'classes'
+                      ? 'bg-white dark:bg-zinc-800 text-zinc-950 dark:text-zinc-50 font-bold shadow-xs'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                  }`}
+                >
+                  By Classes
+                </button>
+              </div>
+
               {isSimulationActive && (
                 <button
                   type="button"
                   onClick={() => {
-                    setSimBunkDays(0);
-                    setSimAttendDays(0);
+                    setSimBunkValue(0);
+                    setSimAttendValue(0);
                   }}
                   className="text-xs text-zinc-500 hover:text-black dark:hover:text-white underline cursor-pointer"
                 >
-                  Reset Sandbox
+                  Reset
                 </button>
               )}
+
               <button 
                 type="button" 
                 onClick={() => setIsSimulatorOpen(false)}
-                className="text-zinc-400 hover:text-black dark:hover:text-white p-1"
+                className="text-zinc-400 hover:text-black dark:hover:text-white p-1 cursor-pointer"
+                title="Close Sandbox"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
-            {/* Slider 1: Skip days */}
-            <div className="space-y-1.5 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800">
-              <div className="flex justify-between items-center text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
+            {/* Slider 1: Skip days / classes */}
+            <div className="space-y-2 p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800">
+              <div className="flex justify-between items-baseline text-xs">
                 <span className="text-zinc-500">Simulate Bunking</span>
-                <span className="font-bold text-red-500">
-                  {simBunkDays} {simBunkDays === 1 ? 'day' : 'days'} ({simBunkDays * effectiveDaily} cls)
-                </span>
+                <div className="text-right">
+                  <span className="font-bold text-red-500 block">
+                    {simBunkValue} {simUnit === 'days' ? (simBunkValue === 1 ? 'day' : 'days') : (simBunkValue === 1 ? 'class' : 'classes')}
+                  </span>
+                  <span className="text-[10px] text-zinc-400">
+                    {simUnit === 'days' ? `(${simBunkClasses} cls)` : `(≈ ${(simBunkValue / effectiveDaily).toFixed(1)} days)`}
+                  </span>
+                </div>
               </div>
-              <input 
-                type="range" 
-                min="0" 
-                max="14" 
-                value={simBunkDays} 
-                onChange={(e) => setSimBunkDays(parseInt(e.target.value) || 0)}
-                className="w-full accent-red-500 cursor-pointer"
-              />
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setSimBunkValue(prev => Math.max(0, prev - 1))}
+                  disabled={simBunkValue === 0}
+                  className="w-5 h-5 rounded flex items-center justify-center border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed font-bold"
+                  title="Decrease by 1"
+                >
+                  -
+                </button>
+                <input 
+                  type="range" 
+                  min="0" 
+                  max={simUnit === 'days' ? 14 : Math.max(50, 14 * effectiveDaily)}
+                  value={simBunkValue} 
+                  onChange={(e) => setSimBunkValue(parseInt(e.target.value) || 0)}
+                  className="flex-1 accent-red-500 cursor-pointer"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSimBunkValue(prev => Math.min(simUnit === 'days' ? 14 : Math.max(50, 14 * effectiveDaily), prev + 1))}
+                  className="w-5 h-5 rounded flex items-center justify-center border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 cursor-pointer font-bold"
+                  title="Increase by 1"
+                >
+                  +
+                </button>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="flex items-center gap-1.5 pt-1 overflow-x-auto">
+                <span className="text-[10px] text-zinc-400">Quick:</span>
+                {simUnit === 'days' ? (
+                  [1, 2, 3, 5].map(d => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setSimBunkValue(prev => Math.min(14, prev + d))}
+                      className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-[10px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 cursor-pointer"
+                    >
+                      +{d}d
+                    </button>
+                  ))
+                ) : (
+                  [1, 2, 3, effectiveDaily].map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setSimBunkValue(prev => Math.min(Math.max(50, 14 * effectiveDaily), prev + c))}
+                      className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-[10px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 cursor-pointer"
+                    >
+                      +{c === effectiveDaily ? `${c} (1d)` : `${c}c`}
+                    </button>
+                  ))
+                )}
+              </div>
             </div>
 
-            {/* Slider 2: Attend days */}
-            <div className="space-y-1.5 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800">
-              <div className="flex justify-between items-center text-xs">
+            {/* Slider 2: Attend days / classes */}
+            <div className="space-y-2 p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800">
+              <div className="flex justify-between items-baseline text-xs">
                 <span className="text-zinc-500">Simulate Attending</span>
-                <span className="font-bold text-emerald-500">
-                  {simAttendDays} {simAttendDays === 1 ? 'day' : 'days'} ({simAttendDays * effectiveDaily} cls)
-                </span>
+                <div className="text-right">
+                  <span className="font-bold text-emerald-500 block">
+                    {simAttendValue} {simUnit === 'days' ? (simAttendValue === 1 ? 'day' : 'days') : (simAttendValue === 1 ? 'class' : 'classes')}
+                  </span>
+                  <span className="text-[10px] text-zinc-400">
+                    {simUnit === 'days' ? `(${simAttendClasses} cls)` : `(≈ ${(simAttendValue / effectiveDaily).toFixed(1)} days)`}
+                  </span>
+                </div>
               </div>
-              <input 
-                type="range" 
-                min="0" 
-                max="21" 
-                value={simAttendDays} 
-                onChange={(e) => setSimAttendDays(parseInt(e.target.value) || 0)}
-                className="w-full accent-emerald-500 cursor-pointer"
-              />
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setSimAttendValue(prev => Math.max(0, prev - 1))}
+                  disabled={simAttendValue === 0}
+                  className="w-5 h-5 rounded flex items-center justify-center border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed font-bold"
+                  title="Decrease by 1"
+                >
+                  -
+                </button>
+                <input 
+                  type="range" 
+                  min="0" 
+                  max={simUnit === 'days' ? 21 : Math.max(60, 21 * effectiveDaily)}
+                  value={simAttendValue} 
+                  onChange={(e) => setSimAttendValue(parseInt(e.target.value) || 0)}
+                  className="flex-1 accent-emerald-500 cursor-pointer"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSimAttendValue(prev => Math.min(simUnit === 'days' ? 21 : Math.max(60, 21 * effectiveDaily), prev + 1))}
+                  className="w-5 h-5 rounded flex items-center justify-center border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 cursor-pointer font-bold"
+                  title="Increase by 1"
+                >
+                  +
+                </button>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="flex items-center gap-1.5 pt-1 overflow-x-auto">
+                <span className="text-[10px] text-zinc-400">Quick:</span>
+                {simUnit === 'days' ? (
+                  [1, 2, 3, 5].map(d => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setSimAttendValue(prev => Math.min(21, prev + d))}
+                      className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-[10px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 cursor-pointer"
+                    >
+                      +{d}d
+                    </button>
+                  ))
+                ) : (
+                  [1, 2, 3, effectiveDaily].map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setSimAttendValue(prev => Math.min(Math.max(60, 21 * effectiveDaily), prev + c))}
+                      className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-[10px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 cursor-pointer"
+                    >
+                      +{c === effectiveDaily ? `${c} (1d)` : `${c}c`}
+                    </button>
+                  ))
+                )}
+              </div>
             </div>
 
             {/* Simulation Preview Result */}
-            <div className="p-3 rounded-xl bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 flex flex-col justify-between h-full">
-              <span className="text-[10px] uppercase text-zinc-500 tracking-wider">Simulated Standing</span>
-              <div className="flex items-baseline gap-2 mt-0.5">
-                <span className="text-2xl font-extrabold text-zinc-950 dark:text-zinc-50">
-                  {simPercentage.toFixed(1)}%
-                </span>
-                <span className={`text-xs font-bold ${
-                  simDelta > 0 ? 'text-emerald-500' : simDelta < 0 ? 'text-red-500' : 'text-zinc-400'
-                }`}>
-                  {simDelta > 0 ? `+${simDelta.toFixed(1)}%` : simDelta < 0 ? `${simDelta.toFixed(1)}%` : '0.0%'}
-                </span>
+            <div className="p-3.5 rounded-xl bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 flex flex-col justify-between h-full space-y-2">
+              <div>
+                <span className="text-[10px] uppercase text-zinc-500 tracking-wider font-semibold">Simulated Standing</span>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <span className="text-2xl font-extrabold text-zinc-950 dark:text-zinc-50">
+                    {simPercentage.toFixed(1)}%
+                  </span>
+                  <span className={`text-xs font-bold ${
+                    simDelta > 0 ? 'text-emerald-500' : simDelta < 0 ? 'text-red-500' : 'text-zinc-400'
+                  }`}>
+                    {simDelta > 0 ? `+${simDelta.toFixed(1)}%` : simDelta < 0 ? `${simDelta.toFixed(1)}%` : '0.0%'}
+                  </span>
+                </div>
               </div>
-              <span className="text-[11px] text-zinc-500 mt-1">
-                {simPercentage >= targetThreshold 
-                  ? `✓ Stays safe (≥${targetThreshold}%)` 
-                  : `⚠ Drops below ${targetThreshold}% deficit`}
-              </span>
+
+              <div className="pt-2 border-t border-zinc-200 dark:border-zinc-700/60 space-y-1">
+                <div className="text-[11px] text-zinc-600 dark:text-zinc-300">
+                  Net: <span className="text-emerald-500 font-bold">+{simAttendClasses}</span> att, <span className="text-red-500 font-bold">-{simBunkClasses}</span> missed
+                </div>
+                <div className="text-[11px] font-medium">
+                  {simPercentage >= targetThreshold 
+                    ? <span className="text-emerald-600 dark:text-emerald-400">✓ Stays safe (≥{targetThreshold}%)</span> 
+                    : <span className="text-amber-600 dark:text-amber-400">⚠ Falls below {targetThreshold}% target</span>}
+                </div>
+              </div>
             </div>
           </div>
         </motion.div>
